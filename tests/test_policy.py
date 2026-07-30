@@ -116,6 +116,8 @@ def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) ->
     assert "-DCOMPILER_TOOLCHAIN=gcc" in script
     assert script.index(toolchain) < script.index(runtime)
     assert 'VERSION_GREATER_EQUAL "1.3.0"' in patch
+    assert "+    URL https://ftp.gnu.org/gnu/gcc/gcc-14.2.0/gcc-14.2.0.tar.xz" in patch
+    assert "+    URL https://mirrorservice.org/sites/sourceware.org/pub/gcc/snapshots" not in patch
 
 
 def test_builds_locate_ffmpeg_config_by_filter_declarations(
@@ -158,6 +160,8 @@ def test_android_verifies_16k_elf_load_alignment(repository_root: Path) -> None:
     ).read_text()
     assert "require_elf_load_alignment()" in common
     assert 'require_elf_load_alignment "$readelf" "$library" 16384' in script
+    assert '"$nm" -D "$abi_dir/libmpv.so" >"$mpv_symbols"' in script
+    assert 'libmpv.so" | grep -q' not in script
     assert "+\t-Diconv=disabled -Dlua=enabled" in patch
     assert "+dep_mpv=(ffmpeg libass lua libplacebo)" in patch
 
@@ -178,3 +182,12 @@ def test_bundled_dependency_trees_contribute_license_notices(
     for platform in ("ios", "macos"):
         script = (repository_root / "scripts" / "build" / f"{platform}.sh").read_text()
         assert 'result/LICENSES" "$LIBMPV_RUNTIME_STAGE/"' in script
+
+
+def test_headless_macos_coreaudio_includes_string_helpers(repository_root: Path) -> None:
+    darwin_patch = (
+        repository_root / "patches" / "darwin" / "0001-enable-lgpl-dsp-filters.patch"
+    ).read_text()
+    assert "mpv-fix-headless-coreaudio.patch" in darwin_patch
+    assert "features['coreaudio'] and not features['cocoa']" in darwin_patch
+    assert "sources += files('osdep/utils-mac.c')" in darwin_patch

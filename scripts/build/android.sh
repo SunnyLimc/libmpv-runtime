@@ -96,9 +96,12 @@ if [[ ! -x "$readelf" ]]; then
   readelf="$(find "$ndk/toolchains/llvm/prebuilt" -path '*/bin/llvm-readelf' -print -quit)"
   nm="$(find "$ndk/toolchains/llvm/prebuilt" -path '*/bin/llvm-nm' -print -quit)"
 fi
-"$nm" -D "$abi_dir/libmpv.so" | grep -q ' mpv_lavc_set_java_vm$'
-"$nm" -D "$abi_dir/libmediakitandroidhelper.so" |
-  grep -q ' MediaKitAndroidHelperGetJavaVM$'
+mpv_symbols="$LIBMPV_RUNTIME_WORK/libmpv.symbols.txt"
+helper_symbols="$LIBMPV_RUNTIME_WORK/libmediakitandroidhelper.symbols.txt"
+"$nm" -D "$abi_dir/libmpv.so" >"$mpv_symbols"
+"$nm" -D "$abi_dir/libmediakitandroidhelper.so" >"$helper_symbols"
+grep -q ' mpv_lavc_set_java_vm$' "$mpv_symbols"
+grep -q ' MediaKitAndroidHelperGetJavaVM$' "$helper_symbols"
 "$readelf" -d "$abi_dir/libmpv.so" >"$LIBMPV_RUNTIME_WORK/libmpv.dynamic.txt"
 program_headers="$LIBMPV_RUNTIME_WORK/elf-program-headers.txt"
 : >"$program_headers"

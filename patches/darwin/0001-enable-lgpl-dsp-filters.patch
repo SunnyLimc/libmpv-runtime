@@ -40,6 +40,14 @@ diff --git a/nix/packages/mk-pkg-mpv/default.nix b/nix/packages/mk-pkg-mpv/defau
 index 24b2998..5b865c3 100644
 --- a/nix/packages/mk-pkg-mpv/default.nix
 +++ b/nix/packages/mk-pkg-mpv/default.nix
+@@ -51,6 +51,7 @@ let
+ 
+     cd $src
+     patch -p1 <${../../../patches/mpv-fix-missing-objc.patch}
++    patch -p1 <${../../../patches/mpv-fix-headless-coreaudio.patch}
+     mkdir -p subprojects
+     cp -r ${libplaceboSrc} subprojects/libplacebo
+ 
 @@ -201,7 +201,7 @@ pkgs.stdenvNoCC.mkDerivation {
      COMMON_OPTIONS=(
        `# booleans`
@@ -114,6 +122,29 @@ index b912bb3..173f656 100644
 +    cp -r ${licenseBundle}/* "$out/LICENSES/"
    '';
  }
+diff --git a/patches/mpv-fix-headless-coreaudio.patch b/patches/mpv-fix-headless-coreaudio.patch
+new file mode 100644
+--- /dev/null
++++ b/patches/mpv-fix-headless-coreaudio.patch
+@@ -0,0 +1,18 @@
++diff --git a/meson.build b/meson.build
++--- a/meson.build
+++++ b/meson.build
++@@ -833,9 +833,13 @@ if features['coreaudio']
++     sources += files('audio/out/ao_coreaudio.c',
++                      'audio/out/ao_coreaudio_exclusive.c',
++                      'audio/out/ao_coreaudio_properties.c')
++ endif
++-
+++
+++if features['coreaudio'] and not features['cocoa']
+++    sources += files('osdep/utils-mac.c')
+++endif
+++
++ if features['audiounit'] or features['coreaudio'] or features['avfoundation']
++     sources += files('audio/out/ao_coreaudio_chmap.c',
++                      'audio/out/ao_coreaudio_utils.c')
++ endif
 diff --git a/Makefile b/Makefile
 index d809c74..fc16075 100644
 --- a/Makefile
