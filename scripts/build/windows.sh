@@ -29,7 +29,11 @@ cmake \
   -S "$LIBMPV_RUNTIME_BUILDER"
 
 log "building the pinned MinGW/GCC toolchain"
-if ! cmake --build "$build_dir" --target gcc --parallel 1; then
+# The pinned container currently ships GCC 16, whose default C++ dialect is
+# C++20. GCC 14's bundled libcody expects pre-C++20 u8 literals to be char,
+# so make the host-tool dialect explicit without affecting target packages.
+if ! CXXFLAGS="-O2 -g -std=gnu++17" \
+  cmake --build "$build_dir" --target gcc --parallel 1; then
   log "MinGW/GCC bootstrap failed; printing retained ExternalProject logs"
   find "$build_dir/toolchain/gcc-prefix/src/gcc-stamp" \
     -maxdepth 1 -type f -name 'gcc-build-*.log' -print \

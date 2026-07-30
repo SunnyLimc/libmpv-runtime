@@ -75,8 +75,9 @@ uv run libmpv-runtime build --target android-arm64-v8a --dry-run
 - Pull requests run lock, policy, unit, packaging-fixture, and workflow tests.
 - Per-platform workflows build and probe real artifacts.
 - A tag named `v*` assembles only artifacts from the same commit.
-- GitHub artifact attestations bind every release archive to its workflow and
-  commit.
+- Every release index binds the full artifact set to the exact source commit.
+- GitHub artifact attestations additionally bind the release to its workflow
+  when the repository plan supports them.
 - Builder archives and release-critical sources are commit/SHA-256 locked;
   any observed core revision mismatch blocks publication.
 

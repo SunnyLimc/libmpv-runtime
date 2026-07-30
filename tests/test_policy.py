@@ -47,6 +47,8 @@ def test_workflow_toolchains_match_lock(repository_root: Path, config: object) -
         "xcode_path",
     ):
         assert str(config.lock.toolchains[key]) in workflow
+    quality = (repository_root / ".github" / "workflows" / "quality.yml").read_text()
+    assert f"actionlint@v{config.lock.toolchains['actionlint']}" in quality
 
 
 def test_darwin_builder_uses_path_flake_for_ignored_worktree(
@@ -121,6 +123,7 @@ def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) ->
     assert "+        --disable-werror" in patch
     assert "+    LOG_OUTPUT_ON_FAILURE 1" in patch
     assert "gcc-build-*.log" in script
+    assert 'CXXFLAGS="-O2 -g -std=gnu++17"' in script
 
 
 def test_windows_workflow_retains_failed_cross_build_logs(repository_root: Path) -> None:
@@ -172,6 +175,7 @@ def test_android_verifies_16k_elf_load_alignment(repository_root: Path) -> None:
     assert 'require_elf_load_alignment "$readelf" "$library" 16384' in script
     assert '"$nm" -D "$abi_dir/libmpv.so" >"$mpv_symbols"' in script
     assert 'libmpv.so" | grep -q' not in script
+    assert 'bash "$LIBMPV_RUNTIME_ROOT/scripts/probe/android-emulator.sh"' in script
     assert "+\t-Diconv=disabled -Dlua=enabled" in patch
     assert "+dep_mpv=(ffmpeg libass lua libplacebo)" in patch
 
@@ -183,6 +187,15 @@ def test_android_emulator_uses_kvm_and_skips_ui_setup(repository_root: Path) -> 
     assert "disable-linux-hw-accel: false" in workflow
     assert "disable-animations: false" in workflow
     assert "-no-snapshot" in workflow
+
+
+def test_private_release_has_plan_safe_attestation_gate(repository_root: Path) -> None:
+    workflow = (repository_root / ".github" / "workflows" / "runtime.yml").read_text()
+    assert "actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4" in workflow
+    assert "artifact-metadata: write" in workflow
+    assert "github.event.repository.visibility == 'public'" in workflow
+    assert "vars.ENABLE_GITHUB_ATTESTATIONS == 'true'" in workflow
+    assert "Explain unavailable GitHub attestations" in workflow
 
 
 def test_bundled_dependency_trees_contribute_license_notices(

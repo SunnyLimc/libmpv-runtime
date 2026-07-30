@@ -124,7 +124,7 @@ if [[ "$LIBMPV_RUNTIME_ARCH" == "x86_64" ]]; then
     printf 'Android x86_64 release evidence requires a running emulator\n' >&2
     exit 1
   fi
-  "$LIBMPV_RUNTIME_ROOT/scripts/probe/android-emulator.sh"
+  bash "$LIBMPV_RUNTIME_ROOT/scripts/probe/android-emulator.sh"
 else
   log "behavior is release-gated by the x86_64 emulator target from the same source graph"
   behavior_reference="android-x86_64"

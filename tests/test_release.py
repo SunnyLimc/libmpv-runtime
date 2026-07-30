@@ -91,6 +91,10 @@ def test_release_index_contains_every_expected_artifact(
     create_release_index(artifacts, output, config)
     index = json.loads(output.read_text(encoding="utf-8"))
     assert index["runtimeVersion"] == config.lock.runtime_version
+    assert index["source"] == {
+        "repository": "https://github.com/SunnyLimc/libmpv-runtime",
+        "commit": _COMMIT,
+    }
     assert {entry["name"] for entry in index["artifacts"]} == {path.name for path in artifacts}
     assert (tmp_path / "SHA256SUMS").is_file()
 

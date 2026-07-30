@@ -165,6 +165,10 @@ def create_release_index(artifacts: list[Path], output: Path, config: Repository
         {
             "schemaVersion": 1,
             "runtimeVersion": config.lock.runtime_version,
+            "source": {
+                "repository": "https://github.com/SunnyLimc/libmpv-runtime",
+                "commit": expected_commit,
+            },
             "artifacts": entries,
         },
     )
