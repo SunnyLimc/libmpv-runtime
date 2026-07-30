@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <mpv/client.h>
+#include <Mpv/Mpv.h>
 
 int main(void) {
     unsigned long version = mpv_client_api_version();

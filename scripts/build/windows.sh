@@ -64,10 +64,6 @@ mkdir -p "$LIBMPV_RUNTIME_STAGE/include" "$LIBMPV_RUNTIME_STAGE/lib"
 cp "$runtime_dll" "$LIBMPV_RUNTIME_STAGE/libmpv-2.dll"
 cp "$import_library" "$LIBMPV_RUNTIME_STAGE/lib/libmpv.dll.a"
 cp -R "$headers" "$LIBMPV_RUNTIME_STAGE/include/"
-copy_source_licenses "$LIBMPV_RUNTIME_STAGE/LICENSES" \
-  "$source_cache/mpv" \
-  "$source_cache/ffmpeg" \
-  "$source_cache/libass" \
-  "$source_cache/libplacebo"
+copy_source_tree_licenses "$LIBMPV_RUNTIME_STAGE/LICENSES" "$source_cache"
 
 log "raw Windows stage is ready; native behavioral probe runs on windows-2025"

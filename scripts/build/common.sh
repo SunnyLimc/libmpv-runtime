@@ -58,14 +58,16 @@ require_ffmpeg_filters() {
 
 find_ffmpeg_config_header() {
   local root="$1"
-  local candidate
-  while IFS= read -r candidate; do
-    if grep -q '^#define CONFIG_LOUDNORM_FILTER ' "$candidate"; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done < <(find "$root" -type f -name config.h -print)
-  printf 'FFmpeg config.h with filter declarations was not found under %s\n' \
+  local header_name candidate
+  for header_name in config_components.h config.h; do
+    while IFS= read -r candidate; do
+      if grep -q '^#define CONFIG_LOUDNORM_FILTER ' "$candidate"; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    done < <(find "$root" -type f -name "$header_name" -print | LC_ALL=C sort)
+  done
+  printf 'FFmpeg generated header with filter declarations was not found under %s\n' \
     "$root" >&2
   return 1
 }
@@ -98,18 +100,23 @@ copy_source_licenses() {
   local source name candidate
   for source in "$@"; do
     name="$(basename "$source")"
-    for candidate in \
-      "$source/Copyright" \
-      "$source/COPYING.LGPLv3" \
-      "$source/COPYING.LGPLv2.1" \
-      "$source/COPYING" \
-      "$source/LICENSE" \
-      "$source/LICENSE.md"; do
-      if [[ -s "$candidate" ]]; then
-        cp "$candidate" "$destination/${name}-$(basename "$candidate").txt"
-      fi
-    done
+    while IFS= read -r -d '' candidate; do
+      cp "$candidate" "$destination/${name}-$(basename "$candidate").txt"
+    done < <(
+      find "$source" -maxdepth 1 -type f \
+        \( -iname 'copyright*' -o -iname 'copying*' -o -iname 'license*' \) \
+        -size +0c -print0
+    )
   done
+}
+
+copy_source_tree_licenses() {
+  local destination="$1"
+  local source_root="$2"
+  local source
+  while IFS= read -r -d '' source; do
+    copy_source_licenses "$destination" "$source"
+  done < <(find "$source_root" -mindepth 1 -maxdepth 1 -type d -print0)
 }
 
 compile_native_probe() {
@@ -155,8 +162,17 @@ run_native_filter_probes() {
 }
 
 record_evidence() {
+  local reference_target="${1:-}"
+  local behavior_arguments=(--behavior-mode native)
+  if [[ -n "$reference_target" ]]; then
+    behavior_arguments=(
+      --behavior-mode source-equivalent
+      --behavior-reference-target "$reference_target"
+    )
+  fi
   python -m libmpv_runtime.cli evidence record \
     --target "$LIBMPV_RUNTIME_TARGET" \
     --output "$LIBMPV_RUNTIME_EVIDENCE" \
-    --filters "${REQUIRED_FILTERS[@]}"
+    --filters "${REQUIRED_FILTERS[@]}" \
+    "${behavior_arguments[@]}"
 }

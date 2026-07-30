@@ -48,7 +48,8 @@ log "building Android $LIBMPV_RUNTIME_ARCH runtime"
 )
 
 prefix="$LIBMPV_RUNTIME_BUILDER/buildscripts/prefix/$upstream_arch"
-config_header="$LIBMPV_RUNTIME_BUILDER/buildscripts/deps/ffmpeg/_build_$upstream_arch/config.h"
+config_header="$(find_ffmpeg_config_header \
+  "$LIBMPV_RUNTIME_BUILDER/buildscripts/deps/ffmpeg/_build_$upstream_arch")"
 require_ffmpeg_filters "$config_header"
 require_file "$prefix/lib/libmpv.so"
 
@@ -107,18 +108,23 @@ while IFS= read -r -d '' library; do
   require_elf_load_alignment "$readelf" "$library" 16384
 done < <(find "$abi_dir" -maxdepth 1 -type f -name '*.so' -print0)
 
-copy_source_licenses "$LIBMPV_RUNTIME_STAGE/LICENSES" \
-  "$LIBMPV_RUNTIME_BUILDER/buildscripts/deps/mpv" \
-  "$LIBMPV_RUNTIME_BUILDER/buildscripts/deps/ffmpeg" \
-  "$LIBMPV_RUNTIME_BUILDER/buildscripts/deps/dav1d" \
-  "$LIBMPV_RUNTIME_BUILDER/buildscripts/deps/libass" \
-  "$LIBMPV_RUNTIME_BUILDER/buildscripts/deps/libplacebo" \
+copy_source_tree_licenses \
+  "$LIBMPV_RUNTIME_STAGE/LICENSES" \
+  "$LIBMPV_RUNTIME_BUILDER/buildscripts/deps"
+copy_source_licenses \
+  "$LIBMPV_RUNTIME_STAGE/LICENSES" \
   "$LIBMPV_RUNTIME_WORK/android-helper"
 
-if [[ "$LIBMPV_RUNTIME_ARCH" == "x86_64" && -n "${ANDROID_SERIAL:-}" ]]; then
+behavior_reference=""
+if [[ "$LIBMPV_RUNTIME_ARCH" == "x86_64" ]]; then
+  if [[ -z "${ANDROID_SERIAL:-}" ]]; then
+    printf 'Android x86_64 release evidence requires a running emulator\n' >&2
+    exit 1
+  fi
   "$LIBMPV_RUNTIME_ROOT/scripts/probe/android-emulator.sh"
 else
-  log "behavior is release-gated by the source-identical x86_64 emulator target"
+  log "behavior is release-gated by the x86_64 emulator target from the same source graph"
+  behavior_reference="android-x86_64"
 fi
 
-record_evidence
+record_evidence "$behavior_reference"

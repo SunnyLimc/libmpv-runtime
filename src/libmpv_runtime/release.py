@@ -57,9 +57,10 @@ def _validate_manifests(
     version: str,
     expected_commit: str,
     expected_targets: set[str],
-) -> None:
+) -> dict[str, dict[str, Any]]:
     manifests = _archive_manifests(artifact)
     observed_targets: set[str] = set()
+    evidence_by_target: dict[str, dict[str, Any]] = {}
     for name, manifest in manifests:
         source = manifest.get("source")
         target = manifest.get("target")
@@ -71,12 +72,48 @@ def _validate_manifests(
             raise ValueError(f"dirty build is not releasable: {artifact.name}:{name}")
         if not isinstance(target, dict) or not isinstance(target.get("name"), str):
             raise ValueError(f"target is missing from manifest: {artifact.name}:{name}")
-        observed_targets.add(target["name"])
+        target_name = target["name"]
+        observed_targets.add(target_name)
+        capabilities = manifest.get("capabilities")
+        evidence = capabilities.get("evidence") if isinstance(capabilities, dict) else None
+        if not isinstance(evidence, dict) or evidence.get("target") != target_name:
+            raise ValueError(f"target evidence is missing from manifest: {artifact.name}:{name}")
+        evidence_by_target[target_name] = evidence
     if observed_targets != expected_targets or len(manifests) != len(expected_targets):
         raise ValueError(
             f"artifact target manifests mismatch for {artifact.name}: "
             f"expected {sorted(expected_targets)}, got {sorted(observed_targets)}"
         )
+    return evidence_by_target
+
+
+def _validate_behavior_references(evidence_by_target: dict[str, dict[str, Any]]) -> None:
+    for target, evidence in evidence_by_target.items():
+        details = evidence.get("details")
+        behavior = details.get("behavior") if isinstance(details, dict) else None
+        if not isinstance(behavior, dict):
+            raise ValueError(f"behavior provenance is missing for release target {target}")
+        mode = behavior.get("mode")
+        reference = behavior.get("referenceTarget")
+        if mode == "native":
+            if reference is not None:
+                raise ValueError(f"native release target {target} has a behavior reference")
+            continue
+        if mode != "source-equivalent" or not isinstance(reference, str):
+            raise ValueError(f"invalid behavior provenance for release target {target}")
+        referenced_evidence = evidence_by_target.get(reference)
+        if referenced_evidence is None:
+            raise ValueError(
+                f"release target {target} references missing behavior target {reference}"
+            )
+        referenced_details = referenced_evidence.get("details")
+        referenced_behavior = (
+            referenced_details.get("behavior") if isinstance(referenced_details, dict) else None
+        )
+        if not isinstance(referenced_behavior, dict) or referenced_behavior.get("mode") != "native":
+            raise ValueError(
+                f"release target {target} behavior reference {reference} is not native"
+            )
 
 
 def create_release_index(artifacts: list[Path], output: Path, config: RepositoryConfig) -> Path:
@@ -88,6 +125,7 @@ def create_release_index(artifacts: list[Path], output: Path, config: Repository
     expected = _expected_artifacts(config)
     entries: list[dict[str, Any]] = []
     observed: set[str] = set()
+    evidence_by_target: dict[str, dict[str, Any]] = {}
     for artifact in sorted(artifacts, key=lambda value: value.name):
         if not artifact.is_file() or artifact.name.endswith(".sha256"):
             continue
@@ -96,12 +134,17 @@ def create_release_index(artifacts: list[Path], output: Path, config: Repository
         observed.add(artifact.name)
         if artifact.name not in expected:
             continue
-        _validate_manifests(
+        artifact_evidence = _validate_manifests(
             artifact,
             version=config.lock.runtime_version,
             expected_commit=expected_commit,
             expected_targets=expected[artifact.name],
         )
+        for target, evidence in artifact_evidence.items():
+            previous = evidence_by_target.get(target)
+            if previous is not None and previous != evidence:
+                raise ValueError(f"inconsistent release evidence for target {target}")
+            evidence_by_target[target] = evidence
         entries.append(
             {
                 "name": artifact.name,
@@ -116,6 +159,7 @@ def create_release_index(artifacts: list[Path], output: Path, config: Repository
         missing = ", ".join(sorted(expected_names - observed)) or "none"
         unexpected = ", ".join(sorted(observed - expected_names)) or "none"
         raise ValueError(f"incomplete release set; missing: {missing}; unexpected: {unexpected}")
+    _validate_behavior_references(evidence_by_target)
     write_json(
         output,
         {

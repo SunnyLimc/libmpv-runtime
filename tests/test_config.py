@@ -45,6 +45,17 @@ def test_all_builder_archives_use_full_revisions_and_sha256(repository_root: Pat
         int(builder.sha256, 16)
 
 
+def test_all_core_sources_use_full_revisions_and_archive_hashes(
+    repository_root: Path,
+) -> None:
+    for source in load_repository(repository_root).lock.sources.values():
+        assert len(source.revision) == 40
+        assert len(source.sha256) == 64
+        int(source.revision, 16)
+        int(source.sha256, 16)
+        assert not source.url.endswith(".git")
+
+
 def test_invalid_aggregate_license_is_rejected(tmp_path: Path, repository_root: Path) -> None:
     value = (repository_root / "runtime.lock.toml").read_text(encoding="utf-8")
     path = tmp_path / "runtime.lock.toml"

@@ -104,8 +104,10 @@ def load_runtime_lock(path: Path) -> RuntimeLock:
     }
     for source in sources.values():
         _https_url(source.url, f"source.{source.name}")
-        if not source.sha256 and not source.url.endswith(".git"):
-            raise ConfigurationError(f"source.{source.name} archive is missing sha256")
+        if not _FULL_REVISION.fullmatch(source.revision):
+            raise ConfigurationError(f"source.{source.name}.revision must be a full commit hash")
+        if not source.sha256:
+            raise ConfigurationError(f"source.{source.name}.sha256 is required")
     for builder in builders.values():
         _https_url(builder.url, f"builder.{builder.key}")
         if not _FULL_REVISION.fullmatch(builder.revision):

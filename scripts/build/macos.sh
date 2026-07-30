@@ -11,6 +11,9 @@ fi
 require_file "$xcode_path/Contents/Developer/usr/bin/xcodebuild"
 export DEVELOPER_DIR="$xcode_path/Contents/Developer"
 
+python -m libmpv_runtime.cli lock verify-darwin \
+  --path "$LIBMPV_RUNTIME_BUILDER/packages.lock.nix"
+
 log "building universal macOS XCFrameworks"
 (
   cd "$LIBMPV_RUNTIME_BUILDER"
@@ -30,6 +33,11 @@ done
 require_file "$LIBMPV_RUNTIME_STAGE/Mpv.xcframework/Info.plist"
 cp "$LIBMPV_RUNTIME_BUILDER/LICENSE.txt" \
   "$LIBMPV_RUNTIME_STAGE/LICENSES-darwin-builder.txt"
+if [[ ! -d "$LIBMPV_RUNTIME_BUILDER/result/LICENSES" ]]; then
+  printf 'Darwin transitive license bundle is missing\n' >&2
+  exit 1
+fi
+cp -R "$LIBMPV_RUNTIME_BUILDER/result/LICENSES" "$LIBMPV_RUNTIME_STAGE/"
 
 log "flattening macOS framework slices for runtime probing"
 frameworks="$LIBMPV_RUNTIME_WORK/macos-frameworks"
@@ -45,9 +53,15 @@ for xcframework in "$LIBMPV_RUNTIME_STAGE"/*.xcframework; do
 done
 require_file "$frameworks/Mpv.framework/Mpv"
 
+probe_include="$LIBMPV_RUNTIME_WORK/probe-include"
+rm -rf "$probe_include"
+mkdir -p "$probe_include/mpv"
+cp "$frameworks/Mpv.framework/Headers/"*.h "$probe_include/mpv/"
+require_file "$probe_include/mpv/client.h"
+
 probe_build="$LIBMPV_RUNTIME_WORK/probe-build"
 rm -rf "$probe_build"
-compile_native_probe "$frameworks/Mpv.framework/Headers" "$probe_build" \
+compile_native_probe "$probe_include" "$probe_build" \
   -DCMAKE_BUILD_TYPE=Release
 probe="$probe_build/mpv_dsp_probe"
 require_file "$probe"

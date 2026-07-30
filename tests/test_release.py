@@ -12,14 +12,30 @@ from libmpv_runtime.package import artifact_name
 from libmpv_runtime.release import create_release_index
 
 _COMMIT = "0123456789abcdef0123456789abcdef01234567"
+_BEHAVIOR_REFERENCES = {
+    "android-arm64-v8a": "android-x86_64",
+    "android-armeabi-v7a": "android-x86_64",
+    "android-x86": "android-x86_64",
+    "ios-universal": "macos-universal",
+}
 
 
 def _manifest(config: object, target: str) -> bytes:
+    reference = _BEHAVIOR_REFERENCES.get(target)
+    behavior = {"mode": "native"}
+    if reference is not None:
+        behavior = {"mode": "source-equivalent", "referenceTarget": reference}
     return json.dumps(
         {
             "runtimeVersion": config.lock.runtime_version,
             "target": {"name": target},
             "source": {"commit": _COMMIT, "dirty": False},
+            "capabilities": {
+                "evidence": {
+                    "target": target,
+                    "details": {"behavior": behavior},
+                }
+            },
         }
     ).encode()
 
@@ -77,3 +93,13 @@ def test_release_index_contains_every_expected_artifact(
     assert index["runtimeVersion"] == config.lock.runtime_version
     assert {entry["name"] for entry in index["artifacts"]} == {path.name for path in artifacts}
     assert (tmp_path / "SHA256SUMS").is_file()
+
+
+def test_release_index_rejects_missing_behavior_reference(
+    tmp_path: Path, config: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GITHUB_SHA", _COMMIT)
+    monkeypatch.setitem(_BEHAVIOR_REFERENCES, "ios-universal", "missing-target")
+    artifacts = _release_artifacts(tmp_path, config)
+    with pytest.raises(ValueError, match="references missing behavior target"):
+        create_release_index(artifacts, tmp_path / "release-index.json", config)

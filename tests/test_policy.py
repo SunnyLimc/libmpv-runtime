@@ -108,10 +108,14 @@ def test_behavior_probe_uses_decoded_pcm_output(repository_root: Path) -> None:
 
 def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) -> None:
     script = (repository_root / "scripts" / "build" / "windows.sh").read_text()
+    patch = (
+        repository_root / "patches" / "windows" / "0001-modern-lgpl-dsp-runtime.patch"
+    ).read_text()
     toolchain = 'cmake --build "$build_dir" --target gcc --parallel'
     runtime = 'cmake --build "$build_dir" --target mpv --parallel'
     assert "-DCOMPILER_TOOLCHAIN=gcc" in script
     assert script.index(toolchain) < script.index(runtime)
+    assert 'VERSION_GREATER_EQUAL "1.3.0"' in patch
 
 
 def test_builds_locate_ffmpeg_config_by_filter_declarations(
@@ -120,14 +124,57 @@ def test_builds_locate_ffmpeg_config_by_filter_declarations(
     common = (repository_root / "scripts" / "build" / "common.sh").read_text()
     assert "find_ffmpeg_config_header()" in common
     assert "CONFIG_LOUDNORM_FILTER" in common
-    for platform in ("linux", "windows"):
+    assert "config_components.h config.h" in common
+    for platform in ("android", "linux", "windows"):
         script = (repository_root / "scripts" / "build" / f"{platform}.sh").read_text()
         assert "find_ffmpeg_config_header" in script
         assert "ffbuild/config.h" not in script
 
 
+def test_macos_probe_reconstructs_standard_mpv_header_layout(
+    repository_root: Path,
+) -> None:
+    script = (repository_root / "scripts" / "build" / "macos.sh").read_text()
+    assert 'mkdir -p "$probe_include/mpv"' in script
+    assert '"$frameworks/Mpv.framework/Headers/"*.h "$probe_include/mpv/"' in script
+    assert 'compile_native_probe "$probe_include"' in script
+
+
+def test_ios_consumer_imports_the_packaged_framework(
+    repository_root: Path,
+) -> None:
+    consumer = (repository_root / "probes" / "native" / "apple_consumer.c").read_text()
+    script = (repository_root / "scripts" / "build" / "ios.sh").read_text()
+    assert "#include <Mpv/Mpv.h>" in consumer
+    assert '-F"$frameworks"' in script
+    assert "Mpv.framework/Headers" not in script
+
+
 def test_android_verifies_16k_elf_load_alignment(repository_root: Path) -> None:
     script = (repository_root / "scripts" / "build" / "android.sh").read_text()
     common = (repository_root / "scripts" / "build" / "common.sh").read_text()
+    patch = (
+        repository_root / "patches" / "android" / "0001-pin-lgpl-dsp-runtime.patch"
+    ).read_text()
     assert "require_elf_load_alignment()" in common
     assert 'require_elf_load_alignment "$readelf" "$library" 16384' in script
+    assert "+\t-Diconv=disabled -Dlua=enabled" in patch
+    assert "+dep_mpv=(ffmpeg libass lua libplacebo)" in patch
+
+
+def test_bundled_dependency_trees_contribute_license_notices(
+    repository_root: Path,
+) -> None:
+    common = (repository_root / "scripts" / "build" / "common.sh").read_text()
+    android = (repository_root / "scripts" / "build" / "android.sh").read_text()
+    windows = (repository_root / "scripts" / "build" / "windows.sh").read_text()
+    assert "copy_source_tree_licenses()" in common
+    assert "buildscripts/deps" in android
+    assert 'copy_source_tree_licenses "$LIBMPV_RUNTIME_STAGE/LICENSES" "$source_cache"' in windows
+    darwin_patch = (
+        repository_root / "patches" / "darwin" / "0001-enable-lgpl-dsp-filters.patch"
+    ).read_text()
+    assert 'licenseBundle = pkgs.runCommand "libmpv-darwin-transitive-licenses"' in darwin_patch
+    for platform in ("ios", "macos"):
+        script = (repository_root / "scripts" / "build" / f"{platform}.sh").read_text()
+        assert 'result/LICENSES" "$LIBMPV_RUNTIME_STAGE/"' in script

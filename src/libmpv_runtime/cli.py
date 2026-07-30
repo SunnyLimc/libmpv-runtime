@@ -6,6 +6,7 @@ from pathlib import Path
 from .android import combine_aar
 from .build import build_target
 from .config import load_repository
+from .darwin import verify_darwin_package_lock
 from .errors import RuntimeToolError
 from .evidence import write_evidence
 from .package import package_target
@@ -25,6 +26,11 @@ def _parser() -> argparse.ArgumentParser:
     lock = commands.add_parser("lock", help="lock-file operations")
     lock_commands = lock.add_subparsers(dest="lock_command", required=True)
     lock_commands.add_parser("validate", help="validate all lock and target invariants")
+    verify_darwin = lock_commands.add_parser(
+        "verify-darwin",
+        help="verify a Darwin builder package lock against the runtime lock",
+    )
+    verify_darwin.add_argument("--path", required=True, type=Path)
 
     target = commands.add_parser("target", help="target operations")
     target_commands = target.add_subparsers(dest="target_command", required=True)
@@ -59,6 +65,12 @@ def _parser() -> argparse.ArgumentParser:
     record.add_argument("--structure", action=argparse.BooleanOptionalAction, default=True)
     record.add_argument("--behavior", action=argparse.BooleanOptionalAction, default=True)
     record.add_argument("--consumer", action=argparse.BooleanOptionalAction, default=True)
+    record.add_argument(
+        "--behavior-mode",
+        choices=("native", "source-equivalent"),
+        default="native",
+    )
+    record.add_argument("--behavior-reference-target")
 
     release = commands.add_parser("release", help="release metadata operations")
     release_commands = release.add_subparsers(dest="release_command", required=True)
@@ -71,12 +83,17 @@ def _parser() -> argparse.ArgumentParser:
     aar = android_commands.add_parser("combine-aar")
     aar.add_argument("--output", required=True, type=Path)
     aar.add_argument("jars", nargs="+", type=Path)
+
     return parser
 
 
 def _execute(arguments: argparse.Namespace) -> int:
     config = load_repository(arguments.root)
     if arguments.command == "lock":
+        if arguments.lock_command == "verify-darwin":
+            verify_darwin_package_lock(config, arguments.path)
+            print(arguments.path)
+            return 0
         print(
             f"valid: runtime {config.lock.runtime_version}, "
             f"{len(config.targets)} targets, {len(config.lock.builders)} builders"
@@ -119,6 +136,8 @@ def _execute(arguments: argparse.Namespace) -> int:
             structure=arguments.structure,
             behavior=arguments.behavior,
             consumer=arguments.consumer,
+            behavior_mode=arguments.behavior_mode,
+            behavior_reference_target=arguments.behavior_reference_target,
         )
         print(output)
         return 0

@@ -2,7 +2,7 @@ schema_version = 1
 runtime_version = "0.1.0-alpha.1"
 flavor = "video-dsp-lgpl3"
 aggregate_license = "LGPL-3.0-or-later"
-source_date_epoch = 1785441600
+source_date_epoch = 1785423992
 
 required_audio_filters = [
   "loudnorm",
@@ -37,30 +37,30 @@ license = "LGPL-2.1-or-later"
 
 [source.ffmpeg]
 version = "8.1.2"
-url = "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz"
+url = "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n8.1.2.tar.gz"
 revision = "38b88335f99e76ed89ff3c93f877fdefce736c13"
-sha256 = "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
+sha256 = "9fd092511605bbebafe095ea6d38d9e40f34d12f7386e1258372df8be0576eb7"
 license = "LGPL-3.0-or-later"
 
 [source.libplacebo]
 version = "7.360.1"
-url = "https://code.videolan.org/videolan/libplacebo.git"
+url = "https://github.com/haasn/libplacebo/archive/cee9b076f2c63104ccfd497fa79c39a867293ec4.tar.gz"
 revision = "cee9b076f2c63104ccfd497fa79c39a867293ec4"
-sha256 = ""
+sha256 = "6f8fa218cbafd8e5f50b8a82d918e1d8bbb92f9f980820bc0b34d92e9b79e484"
 license = "LGPL-2.1-or-later"
 
 [source.libass]
 version = "0.17.5"
-url = "https://github.com/libass/libass.git"
+url = "https://github.com/libass/libass/releases/download/0.17.5/libass-0.17.5.tar.xz"
 revision = "4a05d8127f525943ebf45fdc6497c9e665947f0d"
-sha256 = ""
+sha256 = "2dca25c0e0c837ddf00b52011b3f82cac1e4ddd3ad018227806b0c2288864acc"
 license = "ISC"
 
 [source.dav1d]
 version = "1.5.4"
-url = "https://github.com/videolan/dav1d.git"
+url = "https://downloads.videolan.org/pub/videolan/dav1d/1.5.4/dav1d-1.5.4.tar.xz"
 revision = "54706fc6bc0cdecab7e9593974a4039cc038fca7"
-sha256 = ""
+sha256 = "686616b7c69eb88d44459391ab25cac13b6647a3b288835c5784e71c1514a5c5"
 license = "BSD-2-Clause"
 
 [builder.android]

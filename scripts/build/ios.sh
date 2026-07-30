@@ -11,6 +11,9 @@ fi
 require_file "$xcode_path/Contents/Developer/usr/bin/xcodebuild"
 export DEVELOPER_DIR="$xcode_path/Contents/Developer"
 
+python -m libmpv_runtime.cli lock verify-darwin \
+  --path "$LIBMPV_RUNTIME_BUILDER/packages.lock.nix"
+
 log "building iOS device and simulator XCFrameworks"
 (
   cd "$LIBMPV_RUNTIME_BUILDER"
@@ -30,6 +33,11 @@ done
 require_file "$LIBMPV_RUNTIME_STAGE/Mpv.xcframework/Info.plist"
 cp "$LIBMPV_RUNTIME_BUILDER/LICENSE.txt" \
   "$LIBMPV_RUNTIME_STAGE/LICENSES-darwin-builder.txt"
+if [[ ! -d "$LIBMPV_RUNTIME_BUILDER/result/LICENSES" ]]; then
+  printf 'Darwin transitive license bundle is missing\n' >&2
+  exit 1
+fi
+cp -R "$LIBMPV_RUNTIME_BUILDER/result/LICENSES" "$LIBMPV_RUNTIME_STAGE/"
 
 log "linking a minimal iOS simulator consumer"
 frameworks="$LIBMPV_RUNTIME_WORK/ios-frameworks"
@@ -60,12 +68,11 @@ esac
 xcrun --sdk iphonesimulator clang \
   -arch "$simulator_arch" \
   -mios-simulator-version-min=13.0 \
-  -I"$frameworks/Mpv.framework/Headers" \
   -F"$frameworks" \
   "$LIBMPV_RUNTIME_ROOT/probes/native/apple_consumer.c" \
   "${framework_flags[@]}" \
   -o "$LIBMPV_RUNTIME_WORK/ios-consumer"
 require_file "$LIBMPV_RUNTIME_WORK/ios-consumer"
 
-log "behavior is release-gated by the source-identical macOS target"
-record_evidence
+log "behavior is release-gated by the macOS target with the same locked DSP sources"
+record_evidence "macos-universal"

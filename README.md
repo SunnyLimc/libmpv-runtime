@@ -39,7 +39,11 @@ Static symbol/config checks are only the first gate. Desktop artifacts also run
 `mpv_dsp_probe`, which decodes a deterministic PCM fixture through `libmpv`,
 applies an audio filter, captures the result through `ao=pcm`, and verifies the
 measured gain. Android runs the same native probe in an `x86_64` emulator.
-Apple additionally links each XCFramework slice in a minimal consumer.
+Other Android ABIs record an explicit source-equivalent reference to that
+probe instead of pretending they ran natively. Apple additionally links each
+XCFramework slice in a minimal consumer; iOS records its behavioral reference
+to the macOS probe built from the same locked DSP source graph and filter
+configuration.
 
 ## Local workflow
 

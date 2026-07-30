@@ -49,6 +49,71 @@ index 24b2998..5b865c3 100644
  
        `# misc features`
        -Diconv=enabled `# iconv`
+diff --git a/nix/packages/mk-out-xcframeworks/default.nix b/nix/packages/mk-out-xcframeworks/default.nix
+index b912bb3..173f656 100644
+--- a/nix/packages/mk-out-xcframeworks/default.nix
++++ b/nix/packages/mk-out-xcframeworks/default.nix
+@@ -32,6 +32,52 @@ let
+       ]
+     else
+       abort "Os ${os} is not supported";
++  packageLocks = import ../../../packages.lock.nix;
++  licensePackageNames = [
++    "freetype"
++    "fribidi"
++    "harfbuzz"
++    "libpng"
++    "libxml2"
++    "uchardet"
++  ];
++  licenseSources = builtins.map (
++    packageName:
++    let
++      packageLock = packageLocks.${packageName};
++    in
++    {
++      name = packageName;
++      source = callPackage ../../utils/fetch-tarball/default.nix {
++        name = "${packageName}-license-source-${packageLock.version}";
++        inherit (packageLock) url sha256;
++      };
++    }
++  ) licensePackageNames;
++  licenseBundle = pkgs.runCommand "libmpv-darwin-transitive-licenses" { } ''
++    mkdir -p "$out"
++    copy_license_files() {
++      local source="$1"
++      local package_name="$2"
++      local candidate
++      local found=false
++      while IFS= read -r -d "" candidate; do
++        cp "$candidate" "$out/$package_name-$(basename "$candidate").txt"
++        found=true
++      done < <(
++        find "$source" -maxdepth 1 -type f \
++          \( -iname 'copyright*' -o -iname 'copying*' -o -iname 'license*' \) \
++          -size +0c -print0
++      )
++      if [[ "$found" != true ]]; then
++        echo "No license file found for $package_name" >&2
++        exit 1
++      fi
++    }
++    ${pkgs.lib.concatMapStringsSep "\n" (
++      package: "copy_license_files ${package.source} ${package.name}"
++    ) licenseSources}
++  '';
+ in
+ 
+ pkgs.stdenvNoCC.mkDerivation {
+@@ -74,5 +120,7 @@ pkgs.stdenvNoCC.mkDerivation {
+   '';
+   installPhase = ''
+     cp -r ./build $out
++    mkdir -p "$out/LICENSES"
++    cp -r ${licenseBundle}/* "$out/LICENSES/"
+   '';
+ }
 diff --git a/Makefile b/Makefile
 index d809c74..fc16075 100644
 --- a/Makefile

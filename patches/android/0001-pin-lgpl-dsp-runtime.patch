@@ -90,7 +90,8 @@ index 647f146..f780e85 100755
 @@ -18,8 +18,9 @@ unset CC CXX # meson wants these unset
  meson setup $build --cross-file "$prefix_dir"/crossfile.txt \
  	--default-library shared \
- 	-Diconv=disabled -D{lua,libcurl}=enabled \
+-	-Diconv=disabled -D{lua,libcurl}=enabled \
++	-Diconv=disabled -Dlua=enabled \
 +	-Dgpl=false \
  	-Dlibmpv=true -Dcplayer=false \
 -	-Dmanpage-build=disabled
@@ -98,3 +99,15 @@ index 647f146..f780e85 100755
  
  ninja -C $build -j$cores
  if [ -f $build/libmpv.a ]; then
+diff --git a/buildscripts/include/depinfo.sh b/buildscripts/include/depinfo.sh
+--- a/buildscripts/include/depinfo.sh
++++ b/buildscripts/include/depinfo.sh
+@@ -35,7 +35,7 @@ dep_libass=(freetype2 fontconfig fribidi harfbuzz unibreak)
+ dep_lua=()
+ dep_libplacebo=()
+ dep_curl=(mbedtls)
+-dep_mpv=(ffmpeg libass lua libplacebo curl)
++dep_mpv=(ffmpeg libass lua libplacebo)
+ dep_mpv_android=(mpv)
+ 
+ 
