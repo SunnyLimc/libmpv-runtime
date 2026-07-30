@@ -213,11 +213,13 @@ jobs:
             work/windows-x86_64/source-cache
             work/windows-x86_64/builder/build_x86_64/toolchain
           key: >-
-            windows-gcc-${{ runner.arch }}-v2-${{
-            hashFiles('runtime.lock.toml', 'patches/windows/*.patch') }}
+            windows-gcc-${{ runner.arch }}-v3-${{
+            hashFiles('runtime.lock.toml', '.github/windows-toolchain-cache-key.txt') }}
+          restore-keys: |
+            windows-gcc-${{ runner.arch }}-v2-
 
       - name: Bootstrap pinned Windows toolchain
-        if: steps.windows-toolchain-cache.outputs.cache-hit != 'true'
+        if: steps.windows-toolchain-cache.outputs.cache-matched-key == ''
         env:
           LIBMPV_RUNTIME_WINDOWS_TOOLCHAIN_ONLY: "1"
         run: libmpv-runtime build --target windows-x86_64
