@@ -111,13 +111,23 @@ def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) ->
     patch = (
         repository_root / "patches" / "windows" / "0001-modern-lgpl-dsp-runtime.patch"
     ).read_text()
-    toolchain = 'cmake --build "$build_dir" --target gcc --parallel'
+    toolchain = 'cmake --build "$build_dir" --target gcc --parallel 1'
     runtime = 'cmake --build "$build_dir" --target mpv --parallel'
     assert "-DCOMPILER_TOOLCHAIN=gcc" in script
     assert script.index(toolchain) < script.index(runtime)
     assert 'VERSION_GREATER_EQUAL "1.3.0"' in patch
     assert "+    URL https://ftp.gnu.org/gnu/gcc/gcc-14.2.0/gcc-14.2.0.tar.xz" in patch
     assert "+    URL https://mirrorservice.org/sites/sourceware.org/pub/gcc/snapshots" not in patch
+    assert "+        --disable-werror" in patch
+    assert "+    LOG_OUTPUT_ON_FAILURE 1" in patch
+    assert "gcc-build-*.log" in script
+
+
+def test_windows_workflow_retains_failed_cross_build_logs(repository_root: Path) -> None:
+    workflow = (repository_root / ".github" / "workflows" / "runtime.yml").read_text()
+    assert "Upload Windows cross-build diagnostics" in workflow
+    assert "if: failure()" in workflow
+    assert "work/windows-x86_64/builder/build_x86_64/**/*.log" in workflow
 
 
 def test_builds_locate_ffmpeg_config_by_filter_declarations(
@@ -164,6 +174,15 @@ def test_android_verifies_16k_elf_load_alignment(repository_root: Path) -> None:
     assert 'libmpv.so" | grep -q' not in script
     assert "+\t-Diconv=disabled -Dlua=enabled" in patch
     assert "+dep_mpv=(ffmpeg libass lua libplacebo)" in patch
+
+
+def test_android_emulator_uses_kvm_and_skips_ui_setup(repository_root: Path) -> None:
+    workflow = (repository_root / ".github" / "workflows" / "runtime.yml").read_text()
+    assert "Enable KVM for emulator" in workflow
+    assert "sudo udevadm trigger --name-match=kvm" in workflow
+    assert "disable-linux-hw-accel: false" in workflow
+    assert "disable-animations: false" in workflow
+    assert "-no-snapshot" in workflow
 
 
 def test_bundled_dependency_trees_contribute_license_notices(

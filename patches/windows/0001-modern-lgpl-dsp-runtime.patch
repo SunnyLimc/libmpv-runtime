@@ -55,6 +55,20 @@ diff --git a/toolchain/gcc/gcc.cmake b/toolchain/gcc/gcc.cmake
      DOWNLOAD_DIR ${SOURCE_LOCATION}
      CONFIGURE_COMMAND <SOURCE_DIR>/configure
          --target=${TARGET_ARCH}
+@@ -21,11 +21,13 @@ ExternalProject_Add(gcc
+         --without-included-gettext
+         --enable-lto
+         --enable-checking=release
+         --disable-sjlj-exceptions
++        --disable-werror
+     BUILD_COMMAND make -j${MAKEJOBS} all-gcc
+     INSTALL_COMMAND make install-strip-gcc
+     STEP_TARGETS download install
+     LOG_DOWNLOAD 1 LOG_CONFIGURE 1 LOG_BUILD 1 LOG_INSTALL 1
++    LOG_OUTPUT_ON_FAILURE 1
+ )
+ 
+ ExternalProject_Add_Step(gcc final
 diff --git a/packages/mpv.cmake b/packages/mpv.cmake
 index 6115eef..36a857e 100644
 --- a/packages/mpv.cmake

@@ -29,7 +29,13 @@ cmake \
   -S "$LIBMPV_RUNTIME_BUILDER"
 
 log "building the pinned MinGW/GCC toolchain"
-cmake --build "$build_dir" --target gcc --parallel
+if ! cmake --build "$build_dir" --target gcc --parallel 1; then
+  log "MinGW/GCC bootstrap failed; printing retained ExternalProject logs"
+  find "$build_dir/toolchain/gcc-prefix/src/gcc-stamp" \
+    -maxdepth 1 -type f -name 'gcc-build-*.log' -print \
+    -exec tail -n 400 {} \;
+  exit 1
+fi
 
 log "building the Windows libmpv dependency closure"
 cmake --build "$build_dir" --target mpv --parallel
