@@ -217,9 +217,15 @@ jobs:
             hashFiles('runtime.lock.toml', 'patches/windows/*.patch') }}
 
       - name: Bootstrap pinned Windows toolchain
+        if: steps.windows-toolchain-cache.outputs.cache-hit != 'true'
         env:
           LIBMPV_RUNTIME_WINDOWS_TOOLCHAIN_ONLY: "1"
         run: libmpv-runtime build --target windows-x86_64
+
+      - name: Verify pinned Windows toolchain
+        run: |
+          test -x work/windows-x86_64/gcc-root/bin/x86_64-w64-mingw32-gcc
+          test -f work/windows-x86_64/gcc-root/x86_64-w64-mingw32/lib/crt2.o
 
       - name: Save Windows toolchain cache
         if: steps.windows-toolchain-cache.outputs.cache-hit != 'true'
@@ -232,6 +238,8 @@ jobs:
           key: ${{ steps.windows-toolchain-cache.outputs.cache-primary-key }}
 
       - name: Build raw Windows stage
+        env:
+          LIBMPV_RUNTIME_WINDOWS_SKIP_TOOLCHAIN: "1"
         run: libmpv-runtime build --target windows-x86_64
 
       - name: Upload Windows cross-build diagnostics
