@@ -17,6 +17,7 @@ def _verify_android(stage: Path, target: Target) -> None:
     abi = target.architecture
     _require_file(stage / "lib" / abi / "libmpv.so")
     _require_file(stage / "lib" / abi / "libmediakitandroidhelper.so")
+    _require_file(stage / "lib" / abi / "libc++_shared.so")
     _require_file(
         stage / "com" / "alexmercerind" / "mediakitandroidhelper" / "MediaKitAndroidHelper.class"
     )

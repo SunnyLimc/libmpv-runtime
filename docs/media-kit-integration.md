@@ -7,6 +7,7 @@ Each ABI artifact is a Gradle-compatible JAR:
 ```text
 lib/<abi>/libmpv.so
 lib/<abi>/libmediakitandroidhelper.so
+lib/<abi>/libc++_shared.so
 lib/<abi>/<runtime dependencies>.so
 com/alexmercerind/mediakitandroidhelper/MediaKitAndroidHelper.class
 META-INF/libmpv-runtime/build-manifest.json
@@ -16,11 +17,13 @@ META-INF/libmpv-runtime/LICENSES/...
 
 The `libmpv.so` build exports `mpv_lavc_set_java_vm`, allowing `media_kit` to
 initialize FFmpeg JNI support before playback. All ELF dependencies required by
-`libmpv.so` are placed in the same ABI directory. The combined AAR carries the
-helper Java bytecode in `classes.jar`; it is not a native-libraries-only shell.
+`libmpv.so` are placed in the same ABI directory, including the matching
+NDK `libc++_shared.so`. The combined AAR carries the helper Java bytecode in
+`classes.jar`; it is not a native-libraries-only shell.
 
 A consuming Flutter package may either download these JARs in its Gradle build
-or unpack the matching ABI directories into `src/main/jniLibs`.
+or unpack the matching ABI directories into `src/main/jniLibs`. Do not add a
+different NDK version of `libc++_shared.so` beside this runtime.
 
 ## Windows
 

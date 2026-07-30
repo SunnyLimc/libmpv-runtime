@@ -17,6 +17,7 @@ def test_media_kit_contract_matches_target_load_names(
     assert by_platform["macos"]["library"] == config.target("macos-universal").load_name
     assert by_platform["ios"]["library"] == config.target("ios-universal").load_name
     assert "mpv_lavc_set_java_vm" in by_platform["android"]["requiredSymbols"]
+    assert "libc++_shared.so" in by_platform["android"]["runtimeDependencies"]
 
 
 def test_workflow_actions_are_pinned_to_full_commits(repository_root: Path) -> None:
@@ -124,10 +125,17 @@ def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) ->
     assert "+    LOG_OUTPUT_ON_FAILURE 1" in patch
     assert "gcc-build-*.log" in script
     assert 'CXXFLAGS="-O2 -g -std=gnu++11"' in script
+    assert 'mingw_prefix="$toolchain_root/$target_triplet"' in script
+    assert 'require_file "$mingw_prefix/lib/crt2.o"' in script
+    assert "LIBMPV_RUNTIME_WINDOWS_TOOLCHAIN_ONLY:-0" in script
 
 
 def test_windows_workflow_retains_failed_cross_build_logs(repository_root: Path) -> None:
     workflow = (repository_root / ".github" / "workflows" / "runtime.yml").read_text()
+    assert "actions/cache/restore@" in workflow
+    assert "actions/cache/save@" in workflow
+    assert "Bootstrap pinned Windows toolchain" in workflow
+    assert 'LIBMPV_RUNTIME_WINDOWS_TOOLCHAIN_ONLY: "1"' in workflow
     assert "Upload Windows cross-build diagnostics" in workflow
     assert "if: failure()" in workflow
     assert "work/windows-x86_64/builder/build_x86_64/**/*.log" in workflow

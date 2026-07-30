@@ -38,7 +38,11 @@ def combine_aar(jars: list[Path], output: Path, epoch: int) -> Path:
                     raise IntegrityError(f"unexpected or duplicate ABI {abi} in {jar}")
                 seen.add(abi)
                 names = {Path(name).name for name in library_entries}
-                for required in ("libmpv.so", "libmediakitandroidhelper.so"):
+                for required in (
+                    "libmpv.so",
+                    "libmediakitandroidhelper.so",
+                    "libc++_shared.so",
+                ):
                     if required not in names:
                         raise IntegrityError(f"{jar} is missing {required}")
                 for name in library_entries:

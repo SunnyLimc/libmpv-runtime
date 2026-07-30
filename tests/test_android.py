@@ -4,12 +4,15 @@ import json
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from libmpv_runtime.android import combine_aar
 from libmpv_runtime.archive import deterministic_zip
+from libmpv_runtime.errors import IntegrityError
 from libmpv_runtime.files import sha256_file
 
 
-def _jar(tmp_path: Path, abi: str) -> Path:
+def _jar(tmp_path: Path, abi: str, *, include_cxx_runtime: bool = True) -> Path:
     root = tmp_path / f"root-{abi}"
     libraries = root / "lib" / abi
     metadata = root / "META-INF" / "libmpv-runtime"
@@ -17,6 +20,8 @@ def _jar(tmp_path: Path, abi: str) -> Path:
     metadata.mkdir(parents=True)
     (libraries / "libmpv.so").write_bytes(b"\x7fELF mpv")
     (libraries / "libmediakitandroidhelper.so").write_bytes(b"\x7fELF helper")
+    if include_cxx_runtime:
+        (libraries / "libc++_shared.so").write_bytes(b"\x7fELF c++ runtime")
     helper_class = (
         root / "com" / "alexmercerind" / "mediakitandroidhelper" / "MediaKitAndroidHelper.class"
     )
@@ -44,6 +49,7 @@ def test_combined_aar_contains_every_media_kit_abi(tmp_path: Path) -> None:
         for abi in abis:
             assert f"jni/{abi}/libmpv.so" in names
             assert f"jni/{abi}/libmediakitandroidhelper.so" in names
+            assert f"jni/{abi}/libc++_shared.so" in names
         assert "classes.jar" in names
         assert "AndroidManifest.xml" in names
         for abi in abis:
@@ -56,3 +62,14 @@ def test_combined_aar_contains_every_media_kit_abi(tmp_path: Path) -> None:
                 "com/alexmercerind/mediakitandroidhelper/MediaKitAndroidHelper.class"
                 in classes.namelist()
             )
+
+
+def test_combined_aar_rejects_missing_cxx_runtime(tmp_path: Path) -> None:
+    jars = [
+        _jar(tmp_path, "arm64-v8a", include_cxx_runtime=False),
+        _jar(tmp_path, "armeabi-v7a"),
+        _jar(tmp_path, "x86_64"),
+        _jar(tmp_path, "x86"),
+    ]
+    with pytest.raises(IntegrityError, match=r"missing libc\+\+_shared\.so"):
+        combine_aar(jars, tmp_path / "invalid.aar", 1_700_000_000)

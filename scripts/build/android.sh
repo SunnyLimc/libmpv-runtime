@@ -4,10 +4,22 @@ set -euo pipefail
 source "$LIBMPV_RUNTIME_ROOT/scripts/build/common.sh"
 
 case "$LIBMPV_RUNTIME_ARCH" in
-  arm64-v8a) upstream_arch=arm64 ;;
-  armeabi-v7a) upstream_arch=armv7l ;;
-  x86_64) upstream_arch=x86_64 ;;
-  x86) upstream_arch=x86 ;;
+  arm64-v8a)
+    upstream_arch=arm64
+    ndk_triple=aarch64-linux-android
+    ;;
+  armeabi-v7a)
+    upstream_arch=armv7l
+    ndk_triple=arm-linux-androideabi
+    ;;
+  x86_64)
+    upstream_arch=x86_64
+    ndk_triple=x86_64-linux-android
+    ;;
+  x86)
+    upstream_arch=x86
+    ndk_triple=i686-linux-android
+    ;;
   *) printf 'unsupported Android ABI: %s\n' "$LIBMPV_RUNTIME_ARCH" >&2; exit 1 ;;
 esac
 
@@ -74,6 +86,10 @@ find "$prefix/lib" -maxdepth 1 -type f -name '*.so*' -exec cp {} "$abi_dir/" \;
 helper_library="$(find "$helper_build" -type f -name 'libmediakitandroidhelper.so' -print -quit)"
 require_file "$helper_library"
 cp "$helper_library" "$abi_dir/libmediakitandroidhelper.so"
+cxx_runtime="$(find "$ndk/toolchains/llvm/prebuilt" \
+  -path "*/sysroot/usr/lib/$ndk_triple/libc++_shared.so" -print -quit)"
+require_file "$cxx_runtime"
+cp "$cxx_runtime" "$abi_dir/libc++_shared.so"
 
 android_jar="$builder_sdk/platforms/android-35/android.jar"
 require_file "$android_jar"

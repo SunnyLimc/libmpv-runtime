@@ -6,6 +6,9 @@
     "android": {
       "library": "libmpv.so",
       "helper": "libmediakitandroidhelper.so",
+      "runtimeDependencies": [
+        "libc++_shared.so"
+      ],
       "requiredSymbols": [
         "mpv_client_api_version",
         "mpv_create",

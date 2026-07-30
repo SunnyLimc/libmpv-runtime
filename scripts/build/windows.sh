@@ -9,14 +9,15 @@ if [[ "$LIBMPV_RUNTIME_ARCH" != "x86_64" ]]; then
 fi
 
 build_dir="$LIBMPV_RUNTIME_BUILDER/build_x86_64"
+target_triplet="x86_64-w64-mingw32"
 toolchain_root="$LIBMPV_RUNTIME_WORK/gcc-root"
 source_cache="$LIBMPV_RUNTIME_WORK/source-cache"
-mingw_prefix="$LIBMPV_RUNTIME_WORK/mingw/x86_64-w64-mingw32"
+mingw_prefix="$toolchain_root/$target_triplet"
 mkdir -p "$toolchain_root" "$source_cache" "$mingw_prefix"
 
 log "configuring pinned MinGW/GCC cross-build"
 cmake \
-  -DTARGET_ARCH=x86_64-w64-mingw32 \
+  -DTARGET_ARCH="$target_triplet" \
   -DCOMPILER_TOOLCHAIN=gcc \
   -DCMAKE_INSTALL_PREFIX="$toolchain_root" \
   -DMINGW_INSTALL_PREFIX="$mingw_prefix" \
@@ -40,6 +41,12 @@ if ! CXXFLAGS="-O2 -g -std=gnu++11" \
     -maxdepth 1 -type f -name 'gcc-build-*.log' -print \
     -exec tail -n 400 {} \;
   exit 1
+fi
+require_file "$mingw_prefix/lib/crt2.o"
+
+if [[ "${LIBMPV_RUNTIME_WINDOWS_TOOLCHAIN_ONLY:-0}" == "1" ]]; then
+  log "pinned MinGW/GCC toolchain is ready"
+  exit 0
 fi
 
 log "building the Windows libmpv dependency closure"
