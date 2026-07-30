@@ -338,6 +338,7 @@ jobs:
       contents: write
       id-token: write
       attestations: write
+      artifact-metadata: write
     steps:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -367,7 +368,10 @@ jobs:
             "${artifacts[@]}"
 
       - name: Attest release artifacts
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        if: >-
+          github.event.repository.visibility == 'public' ||
+          vars.ENABLE_GITHUB_ATTESTATIONS == 'true'
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4
         with:
           subject-path: |
             release/*.aar
@@ -376,6 +380,16 @@ jobs:
             release/*.zip
             release/release-index.json
             release/SHA256SUMS
+
+      - name: Explain unavailable GitHub attestations
+        if: >-
+          github.event.repository.visibility != 'public' &&
+          vars.ENABLE_GITHUB_ATTESTATIONS != 'true'
+        run: |
+          echo "GitHub artifact attestations require Enterprise Cloud for private repositories." \
+            >> "$GITHUB_STEP_SUMMARY"
+          echo "Checksums, source locks, manifests, and SPDX SBOMs remain release gates." \
+            >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create GitHub release
         env:
