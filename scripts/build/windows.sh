@@ -29,19 +29,24 @@ cmake \
   -B "$build_dir" \
   -S "$LIBMPV_RUNTIME_BUILDER"
 
-log "building the pinned MinGW/GCC toolchain"
-# The pinned container currently ships GCC 16, whose default C++ dialect is
-# newer than the exact C++11 mode required by GCC 14's bundled libcody
-# configure probe. Keep this scoped to the host-tool bootstrap so target
-# packages retain their own compiler flags.
-if ! CXXFLAGS="-O2 -g -std=gnu++11" \
-  cmake --build "$build_dir" --target gcc --parallel 1; then
-  log "MinGW/GCC bootstrap failed; printing retained ExternalProject logs"
-  find "$build_dir/toolchain/gcc-prefix/src/gcc-stamp" \
-    -maxdepth 1 -type f -name 'gcc-build-*.log' -print \
-    -exec tail -n 400 {} \;
-  exit 1
+if [[ "${LIBMPV_RUNTIME_WINDOWS_SKIP_TOOLCHAIN:-0}" != "1" ]]; then
+  log "building the pinned MinGW/GCC toolchain"
+  # The pinned container currently ships GCC 16, whose default C++ dialect is
+  # newer than the exact C++11 mode required by GCC 14's bundled libcody
+  # configure probe. Keep this scoped to the host-tool bootstrap so target
+  # packages retain their own compiler flags.
+  if ! CXXFLAGS="-O2 -g -std=gnu++11" \
+    cmake --build "$build_dir" --target gcc --parallel 1; then
+    log "MinGW/GCC bootstrap failed; printing retained ExternalProject logs"
+    find "$build_dir/toolchain/gcc-prefix/src/gcc-stamp" \
+      -maxdepth 1 -type f -name 'gcc-build-*.log' -print \
+      -exec tail -n 400 {} \;
+    exit 1
+  fi
+else
+  log "using the workflow-verified pinned MinGW/GCC toolchain"
 fi
+require_file "$toolchain_root/bin/$target_triplet-gcc"
 require_file "$mingw_prefix/lib/crt2.o"
 
 if [[ "${LIBMPV_RUNTIME_WINDOWS_TOOLCHAIN_ONLY:-0}" == "1" ]]; then

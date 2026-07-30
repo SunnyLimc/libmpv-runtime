@@ -126,7 +126,9 @@ def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) ->
     assert "gcc-build-*.log" in script
     assert 'CXXFLAGS="-O2 -g -std=gnu++11"' in script
     assert 'mingw_prefix="$toolchain_root/$target_triplet"' in script
+    assert 'require_file "$toolchain_root/bin/$target_triplet-gcc"' in script
     assert 'require_file "$mingw_prefix/lib/crt2.o"' in script
+    assert "LIBMPV_RUNTIME_WINDOWS_SKIP_TOOLCHAIN:-0" in script
     assert "LIBMPV_RUNTIME_WINDOWS_TOOLCHAIN_ONLY:-0" in script
 
 
@@ -136,6 +138,9 @@ def test_windows_workflow_retains_failed_cross_build_logs(repository_root: Path)
     assert "actions/cache/save@" in workflow
     assert "Bootstrap pinned Windows toolchain" in workflow
     assert 'LIBMPV_RUNTIME_WINDOWS_TOOLCHAIN_ONLY: "1"' in workflow
+    assert 'LIBMPV_RUNTIME_WINDOWS_SKIP_TOOLCHAIN: "1"' in workflow
+    assert "Verify pinned Windows toolchain" in workflow
+    assert "outputs.cache-hit != 'true'" in workflow
     assert "Upload Windows cross-build diagnostics" in workflow
     assert "if: failure()" in workflow
     assert "work/windows-x86_64/builder/build_x86_64/**/*.log" in workflow
