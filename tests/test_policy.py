@@ -123,6 +123,8 @@ def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) ->
     assert "+    URL https://mirrorservice.org/sites/sourceware.org/pub/gcc/snapshots" not in patch
     assert "+        --disable-werror" in patch
     assert "+    LOG_OUTPUT_ON_FAILURE 1" in patch
+    assert '+        set(head_ref "HEAD")' in patch
+    assert "rev-parse ${head_ref}" in patch
     assert "gcc-build-*.log" in script
     assert 'CXXFLAGS="-O2 -g -std=gnu++11"' in script
     assert 'mingw_prefix="$toolchain_root/$target_triplet"' in script
@@ -134,13 +136,20 @@ def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) ->
 
 def test_windows_workflow_retains_failed_cross_build_logs(repository_root: Path) -> None:
     workflow = (repository_root / ".github" / "workflows" / "runtime.yml").read_text()
+    cache_key = (repository_root / ".github" / "windows-toolchain-cache-key.txt").read_text()
     assert "actions/cache/restore@" in workflow
     assert "actions/cache/save@" in workflow
     assert "Bootstrap pinned Windows toolchain" in workflow
     assert 'LIBMPV_RUNTIME_WINDOWS_TOOLCHAIN_ONLY: "1"' in workflow
     assert 'LIBMPV_RUNTIME_WINDOWS_SKIP_TOOLCHAIN: "1"' in workflow
     assert "Verify pinned Windows toolchain" in workflow
+    assert "windows-toolchain-cache-key.txt" in workflow
+    assert "outputs.cache-matched-key == ''" in workflow
     assert "outputs.cache-hit != 'true'" in workflow
+    assert "windows-gcc-${{ runner.arch }}-v2-" in workflow
+    assert "compiler=gcc-14.2.0" in cache_key
+    assert "target=x86_64-w64-mingw32" in cache_key
+    assert "host-cxx-dialect=gnu++11" in cache_key
     assert "Upload Windows cross-build diagnostics" in workflow
     assert "if: failure()" in workflow
     assert "work/windows-x86_64/builder/build_x86_64/**/*.log" in workflow

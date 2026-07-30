@@ -274,3 +274,27 @@ diff --git a/packages/zlib.cmake b/packages/zlib.cmake
      CONFIGURE_COMMAND ${EXEC} CONF=1 cmake -H<SOURCE_DIR> -B<BINARY_DIR>
          -G Ninja
          -DCMAKE_BUILD_TYPE=Release
+diff --git a/cmake/custom_steps.cmake b/cmake/custom_steps.cmake
+--- a/cmake/custom_steps.cmake
++++ b/cmake/custom_steps.cmake
+@@ -83,14 +83,17 @@ function(force_rebuild_git _name)
+     if("${git_remote_name}" STREQUAL "" AND NOT "${git_tag}" STREQUAL "")
+         # GIT_REMOTE_NAME is not set when commit hash is specified
+         set(reset "")
++        set(head_ref "HEAD")
+     elseif(NOT "${git_reset}" STREQUAL "")
+         set(reset "${git_reset}")
++        set(head_ref "@{u}")
+     else()
+         set(reset "@{u}") # eg: origin/master
++        set(head_ref "@{u}")
+     endif()
+ 
+ file(WRITE ${stamp_dir}/reset_head.sh
+ "#!/bin/bash
+ set -e
+-if [[ ! -f \"${stamp_dir}/${_name}-patch\"  || \"${stamp_dir}/${_name}-download\" -nt \"${stamp_dir}/${_name}-patch\" || ! -f \"${stamp_dir}/HEAD\" || \"$(cat ${stamp_dir}/HEAD)\" != \"$(git -C ${source_dir} rev-parse @{u})\" ]]; then
++if [[ ! -f \"${stamp_dir}/${_name}-patch\"  || \"${stamp_dir}/${_name}-download\" -nt \"${stamp_dir}/${_name}-patch\" || ! -f \"${stamp_dir}/HEAD\" || \"$(cat ${stamp_dir}/HEAD)\" != \"$(git -C ${source_dir} rev-parse ${head_ref})\" ]]; then
+     echo ${source_dir}
+     git -C ${source_dir} reset --hard ${reset} -q
+     if [[ -z \"${git_reset}\" ]]; then

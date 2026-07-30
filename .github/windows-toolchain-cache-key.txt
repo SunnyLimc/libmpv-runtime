@@ -1,0 +1,5 @@
+schema=1
+target=x86_64-w64-mingw32
+compiler=gcc-14.2.0
+sysroot-layout=gcc-root/x86_64-w64-mingw32
+host-cxx-dialect=gnu++11
