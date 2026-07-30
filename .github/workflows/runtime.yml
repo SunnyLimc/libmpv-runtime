@@ -201,6 +201,36 @@ jobs:
       - name: Install Python package
         run: python -m pip install --break-system-packages -e . "meson==1.11.0"
 
+      - name: Prepare verified Windows builder
+        run: libmpv-runtime source prepare --target windows-x86_64
+
+      - name: Restore Windows toolchain cache
+        id: windows-toolchain-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            work/windows-x86_64/gcc-root
+            work/windows-x86_64/source-cache
+            work/windows-x86_64/builder/build_x86_64/toolchain
+          key: >-
+            windows-gcc-${{ runner.arch }}-v2-${{
+            hashFiles('runtime.lock.toml', 'patches/windows/*.patch') }}
+
+      - name: Bootstrap pinned Windows toolchain
+        env:
+          LIBMPV_RUNTIME_WINDOWS_TOOLCHAIN_ONLY: "1"
+        run: libmpv-runtime build --target windows-x86_64
+
+      - name: Save Windows toolchain cache
+        if: steps.windows-toolchain-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            work/windows-x86_64/gcc-root
+            work/windows-x86_64/source-cache
+            work/windows-x86_64/builder/build_x86_64/toolchain
+          key: ${{ steps.windows-toolchain-cache.outputs.cache-primary-key }}
+
       - name: Build raw Windows stage
         run: libmpv-runtime build --target windows-x86_64
 
@@ -399,3 +429,4 @@ jobs:
             --verify-tag \
             --title "libmpv-runtime ${GITHUB_REF_NAME}" \
             --generate-notes
+
