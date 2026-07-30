@@ -1,0 +1,13 @@
+/.cache/
+/.venv/
+/.pytest_cache/
+/.ruff_cache/
+/.coverage
+/build/
+/dist/
+/work/
+/wheelhouse/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.DS_Store

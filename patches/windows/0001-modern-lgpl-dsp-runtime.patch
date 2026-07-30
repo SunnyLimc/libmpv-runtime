@@ -1,0 +1,221 @@
+diff --git a/packages/ffmpeg.cmake b/packages/ffmpeg.cmake
+index db44974..377a0fa 100644
+--- a/packages/ffmpeg.cmake
++++ b/packages/ffmpeg.cmake
+@@ -31,7 +31,7 @@ ExternalProject_Add(ffmpeg
+     GIT_REPOSITORY https://github.com/FFmpeg/FFmpeg.git
+     SOURCE_DIR ${SOURCE_LOCATION}
+     GIT_CLONE_FLAGS "--sparse --filter=tree:0"
+-    GIT_TAG release/7.1
++    GIT_TAG 38b88335f99e76ed89ff3c93f877fdefce736c13
+     GIT_CLONE_POST_COMMAND "sparse-checkout set --no-cone /* !tests/ref/fate"
+     PATCH_COMMAND ${EXEC} git apply ${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg-*.patch
+     UPDATE_COMMAND ""
+@@ -184,6 +184,14 @@ ExternalProject_Add(ffmpeg
+ 
+         --enable-filter=overlay
+         --enable-filter=equalizer
++        --enable-filter=loudnorm
++        --enable-filter=dynaudnorm
++        --enable-filter=acompressor
++        --enable-filter=alimiter
++        --enable-filter=volume
++        --enable-filter=aresample
++        --enable-filter=ebur128
++        --enable-filter=astats
+ 
+         --enable-protocol=async
+         --enable-protocol=cache
+diff --git a/packages/mpv.cmake b/packages/mpv.cmake
+index 6115eef..36a857e 100644
+--- a/packages/mpv.cmake
++++ b/packages/mpv.cmake
+@@ -17,7 +17,7 @@ ExternalProject_Add(mpv
+         spirv-cross
+     GIT_REPOSITORY https://github.com/mpv-player/mpv.git
+     SOURCE_DIR ${SOURCE_LOCATION}
+-    GIT_TAG v0.39.0
++    GIT_TAG 41f6a645068483470267271e1d09966ca3b9f413
+     PATCH_COMMAND ${EXEC} git apply ${CMAKE_CURRENT_SOURCE_DIR}/mpv-*.patch
+     UPDATE_COMMAND ""
+     CONFIGURE_COMMAND ${EXEC} CONF=1 meson setup <BINARY_DIR> <SOURCE_DIR>
+@@ -27,6 +27,7 @@ ExternalProject_Add(mpv
+         --default-library=shared
+         --prefer-static
+         -Dgpl=false
++        -Dbuild-date=false
+         -Ddebug=false
+         -Db_ndebug=false
+         -Doptimization=3
+@@ -34,6 +35,8 @@ ExternalProject_Add(mpv
+         ${mpv_lto_mode}
+         -Dlibmpv=true
+-        -Dpdf-build=enabled
++        -Dpdf-build=disabled
++        -Dmanpage-build=disabled
++        -Dhtml-build=disabled
+         -Dlua=disabled
+         -Djavascript=disabled
+         -Duchardet=enabled
+diff --git a/toolchain/cppwinrt.cmake b/toolchain/cppwinrt.cmake
+--- a/toolchain/cppwinrt.cmake
++++ b/toolchain/cppwinrt.cmake
+@@ -13,1 +13,1 @@
+-            COMMAND ${EXEC} wget -O <BINARY_DIR>/Windows.winmd  https://github.com/microsoft/windows-rs/raw/master/crates/libs/bindgen/default/Windows.winmd
++            COMMAND ${EXEC} wget -O <BINARY_DIR>/Windows.winmd  https://github.com/microsoft/windows-rs/raw/90baf4ddfed87dec5b802e0f34eab66197140c55/crates/libs/bindgen/default/Windows.winmd
+diff --git a/toolchain/llvm/llvm.cmake b/toolchain/llvm/llvm.cmake
+--- a/toolchain/llvm/llvm.cmake
++++ b/toolchain/llvm/llvm.cmake
+@@ -9,1 +9,1 @@
+-    GIT_TAG release/20.x
++    GIT_TAG 87f0227cb60147a26a1eeb4fb06e3b505e9c7261
+diff --git a/packages/angle-headers.cmake b/packages/angle-headers.cmake
+--- a/packages/angle-headers.cmake
++++ b/packages/angle-headers.cmake
+@@ -5,1 +5,1 @@
+-    GIT_TAG main
++    GIT_TAG 2c5c60cd270d1596fa8abe06bd277983852f4b2b
+diff --git a/packages/aom.cmake b/packages/aom.cmake
+--- a/packages/aom.cmake
++++ b/packages/aom.cmake
+@@ -6,1 +6,1 @@
+-    GIT_TAG main
++    GIT_TAG 431ff8b2141d1619ee966d7bca103f645f8e1819
+diff --git a/packages/fast_float.cmake b/packages/fast_float.cmake
+--- a/packages/fast_float.cmake
++++ b/packages/fast_float.cmake
+@@ -6,1 +6,1 @@
+-    GIT_TAG main
++    GIT_TAG f6df0f29174054bb1ed06a9945416c8946a01292
+diff --git a/packages/fontconfig.cmake b/packages/fontconfig.cmake
+--- a/packages/fontconfig.cmake
++++ b/packages/fontconfig.cmake
+@@ -11,1 +11,1 @@
+-    GIT_TAG main
++    GIT_TAG f206d49b7f2f578e39ceee02e8c2e040c5a25e9a
+diff --git a/packages/glslang.cmake b/packages/glslang.cmake
+--- a/packages/glslang.cmake
++++ b/packages/glslang.cmake
+@@ -7,1 +7,1 @@
+-    GIT_TAG main
++    GIT_TAG b8a8b3ed509bae703a3d0144176d3dbafb17b033
+diff --git a/packages/harfbuzz.cmake b/packages/harfbuzz.cmake
+--- a/packages/harfbuzz.cmake
++++ b/packages/harfbuzz.cmake
+@@ -8,1 +8,1 @@
+-    GIT_TAG main
++    GIT_TAG 5b54d30ce7ade7b1c675bd71eb33fa5fa754fa8f
+diff --git a/packages/libdovi.cmake b/packages/libdovi.cmake
+--- a/packages/libdovi.cmake
++++ b/packages/libdovi.cmake
+@@ -7,1 +7,1 @@
+-    GIT_TAG main
++    GIT_TAG 38adec045bf183c24df38149836c920398072281
+diff --git a/packages/libjpeg.cmake b/packages/libjpeg.cmake
+--- a/packages/libjpeg.cmake
++++ b/packages/libjpeg.cmake
+@@ -5,1 +5,1 @@
+-    GIT_TAG main
++    GIT_TAG 52da6095c9986f485e29d9f51bd9042f7911681a
+diff --git a/packages/libjxl.cmake b/packages/libjxl.cmake
+--- a/packages/libjxl.cmake
++++ b/packages/libjxl.cmake
+@@ -14,1 +14,1 @@
+-    GIT_TAG main
++    GIT_TAG 196a43d996aa6ed33ebf98812a7c6d43b2b6d01b
+diff --git a/packages/libmysofa.cmake b/packages/libmysofa.cmake
+--- a/packages/libmysofa.cmake
++++ b/packages/libmysofa.cmake
+@@ -6,1 +6,1 @@
+-    GIT_TAG main
++    GIT_TAG 90531bdb0b485dd36e8a14b3e37ce1c47c54d669
+diff --git a/packages/libvpl.cmake b/packages/libvpl.cmake
+--- a/packages/libvpl.cmake
++++ b/packages/libvpl.cmake
+@@ -6,1 +6,1 @@
+-    GIT_TAG main
++    GIT_TAG 674d015bcb294bc39fa276e99a652ea045423e82
+diff --git a/packages/libvpx.cmake b/packages/libvpx.cmake
+--- a/packages/libvpx.cmake
++++ b/packages/libvpx.cmake
+@@ -6,1 +6,1 @@
+-    GIT_TAG main
++    GIT_TAG ade52487a37ef76a0f209bd39bea9fe67d6db4c4
+diff --git a/packages/libwebp.cmake b/packages/libwebp.cmake
+--- a/packages/libwebp.cmake
++++ b/packages/libwebp.cmake
+@@ -10,1 +10,1 @@
+-    GIT_TAG main
++    GIT_TAG 733c91e461c18cf1127c9ed0a80dccbcfed599d3
+diff --git a/packages/libzvbi.cmake b/packages/libzvbi.cmake
+--- a/packages/libzvbi.cmake
++++ b/packages/libzvbi.cmake
+@@ -9,1 +9,1 @@
+-    GIT_TAG main
++    GIT_TAG 2e159525bdf62e6132f0d20e0376b36bf6eec4bd
+diff --git a/packages/mbedtls.cmake b/packages/mbedtls.cmake
+--- a/packages/mbedtls.cmake
++++ b/packages/mbedtls.cmake
+@@ -8,1 +8,1 @@
+-    GIT_TAG master
++    GIT_TAG 0bebf8b8c7f07abe3571ded48a11aa907a1ffb20
+diff --git a/packages/opus.cmake b/packages/opus.cmake
+--- a/packages/opus.cmake
++++ b/packages/opus.cmake
+@@ -9,1 +9,1 @@
+-    GIT_TAG main
++    GIT_TAG 3da9f7a6db1c05c3996cb363a9d1931a978bf1be
+diff --git a/packages/shaderc.cmake b/packages/shaderc.cmake
+--- a/packages/shaderc.cmake
++++ b/packages/shaderc.cmake
+@@ -9,1 +9,1 @@
+-    GIT_TAG main
++    GIT_TAG 590d5667c06023f92f10de11858724138e9326b5
+diff --git a/packages/spirv-cross.cmake b/packages/spirv-cross.cmake
+--- a/packages/spirv-cross.cmake
++++ b/packages/spirv-cross.cmake
+@@ -6,1 +6,1 @@
+-    GIT_TAG main
++    GIT_TAG 6c09849fe88c48eaed08413aa022aaa136a3a057
+diff --git a/packages/spirv-headers.cmake b/packages/spirv-headers.cmake
+--- a/packages/spirv-headers.cmake
++++ b/packages/spirv-headers.cmake
+@@ -6,1 +6,1 @@
+-    GIT_TAG main
++    GIT_TAG 4015a331f5ffd6fc5c6fa7b03e08fb4a692491d7
+diff --git a/packages/spirv-tools.cmake b/packages/spirv-tools.cmake
+--- a/packages/spirv-tools.cmake
++++ b/packages/spirv-tools.cmake
+@@ -6,1 +6,1 @@
+-    GIT_TAG main
++    GIT_TAG 5f62f05f5f1dac09f81af9f207e7ab6c82b3722e
+diff --git a/packages/vulkan-header.cmake b/packages/vulkan-header.cmake
+--- a/packages/vulkan-header.cmake
++++ b/packages/vulkan-header.cmake
+@@ -7,1 +7,1 @@
+-    GIT_TAG main
++    GIT_TAG d314eae73fdc90847bb8304a86ee7c6a8ee023b6
+diff --git a/packages/vulkan.cmake b/packages/vulkan.cmake
+--- a/packages/vulkan.cmake
++++ b/packages/vulkan.cmake
+@@ -8,1 +8,1 @@
+-    GIT_TAG main
++    GIT_TAG 94d652a36995cced647dd515b9b40a994687ddcf
+diff --git a/packages/libass.cmake b/packages/libass.cmake
+--- a/packages/libass.cmake
++++ b/packages/libass.cmake
+@@ -10,1 +10,2 @@
+     SOURCE_DIR ${SOURCE_LOCATION}
++    GIT_TAG 4a05d8127f525943ebf45fdc6497c9e665947f0d
+diff --git a/packages/libplacebo.cmake b/packages/libplacebo.cmake
+--- a/packages/libplacebo.cmake
++++ b/packages/libplacebo.cmake
+@@ -14,1 +14,2 @@
+     SOURCE_DIR ${SOURCE_LOCATION}
++    GIT_TAG cee9b076f2c63104ccfd497fa79c39a867293ec4
+diff --git a/packages/dav1d.cmake b/packages/dav1d.cmake
+--- a/packages/dav1d.cmake
++++ b/packages/dav1d.cmake
+@@ -5,1 +5,2 @@
+     SOURCE_DIR ${SOURCE_LOCATION}
++    GIT_TAG 54706fc6bc0cdecab7e9593974a4039cc038fca7

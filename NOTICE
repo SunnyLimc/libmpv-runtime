@@ -1,0 +1,9 @@
+libmpv-runtime orchestration source is licensed under the MIT License.
+
+Runtime archives produced by this repository combine mpv, FFmpeg, and other
+libraries. The video-dsp-lgpl3 flavor disables GPL and non-free components and
+is distributed under LGPL-3.0-or-later as an aggregate. Each archive contains
+its own LICENSES directory, SPDX SBOM, source-lock.json, and build-manifest.json.
+
+No binary artifact should be redistributed without those accompanying files
+and the corresponding-source information recorded in its manifest.

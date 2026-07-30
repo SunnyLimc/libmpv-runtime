@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.zip binary
+*.jar binary
+*.aar binary
+*.zst binary
+*.patch -whitespace

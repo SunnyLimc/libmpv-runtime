@@ -1,0 +1,73 @@
+schema_version = 1
+
+[target.android-arm64-v8a]
+platform = "android"
+architecture = "arm64-v8a"
+builder = "android"
+runner = "ubuntu-24.04"
+package = "jar"
+load_name = "libmpv.so"
+
+[target.android-armeabi-v7a]
+platform = "android"
+architecture = "armeabi-v7a"
+builder = "android"
+runner = "ubuntu-24.04"
+package = "jar"
+load_name = "libmpv.so"
+
+[target.android-x86_64]
+platform = "android"
+architecture = "x86_64"
+builder = "android"
+runner = "ubuntu-24.04"
+package = "jar"
+load_name = "libmpv.so"
+
+[target.android-x86]
+platform = "android"
+architecture = "x86"
+builder = "android"
+runner = "ubuntu-24.04"
+package = "jar"
+load_name = "libmpv.so"
+
+[target.windows-x86_64]
+platform = "windows"
+architecture = "x86_64"
+builder = "windows"
+runner = "ubuntu-24.04"
+package = "zip"
+load_name = "libmpv-2.dll"
+
+[target.linux-x86_64]
+platform = "linux"
+architecture = "x86_64"
+builder = "linux"
+runner = "ubuntu-24.04"
+package = "tar.gz"
+load_name = "libmpv.so.2"
+
+[target.linux-aarch64]
+platform = "linux"
+architecture = "aarch64"
+builder = "linux"
+runner = "ubuntu-24.04-arm"
+package = "tar.gz"
+load_name = "libmpv.so.2"
+
+[target.macos-universal]
+platform = "macos"
+architecture = "universal"
+builder = "darwin"
+runner = "macos-26"
+package = "xcframework"
+load_name = "Mpv.framework/Mpv"
+
+[target.ios-universal]
+platform = "ios"
+architecture = "universal"
+builder = "darwin"
+runner = "macos-26"
+package = "xcframework"
+load_name = "Mpv.framework/Mpv"

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "upstream": "https://github.com/media-kit/media-kit",
+  "minimumMediaKitVersion": "1.2.6",
+  "platforms": {
+    "android": {
+      "library": "libmpv.so",
+      "helper": "libmediakitandroidhelper.so",
+      "requiredSymbols": [
+        "mpv_client_api_version",
+        "mpv_create",
+        "mpv_lavc_set_java_vm"
+      ]
+    },
+    "windows": {
+      "library": "libmpv-2.dll",
+      "requiredSymbols": [
+        "mpv_client_api_version",
+        "mpv_create"
+      ]
+    },
+    "linux": {
+      "candidates": [
+        "libmpv.so",
+        "libmpv.so.2",
+        "libmpv.so.1"
+      ],
+      "requiredSymbols": [
+        "mpv_client_api_version",
+        "mpv_create"
+      ]
+    },
+    "macos": {
+      "library": "Mpv.framework/Mpv",
+      "requiredSymbols": [
+        "mpv_client_api_version",
+        "mpv_create"
+      ]
+    },
+    "ios": {
+      "library": "Mpv.framework/Mpv",
+      "requiredSymbols": [
+        "mpv_client_api_version",
+        "mpv_create"
+      ]
+    }
+  }
+}
