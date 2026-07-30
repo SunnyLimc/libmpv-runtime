@@ -1,0 +1,369 @@
+name: runtime
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  linux:
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            arch: x86_64
+            runner: ubuntu-24.04
+          - target: linux-aarch64
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            autoconf automake build-essential cmake git libasound2-dev \
+            libdrm-dev libegl-dev libfontconfig1-dev libfreetype-dev \
+            libfribidi-dev libgl-dev libgnutls28-dev libharfbuzz-dev \
+            libjpeg-dev liblcms2-dev libpulse-dev libtool libuchardet-dev \
+            libwayland-dev libx11-dev libxext-dev libxinerama-dev \
+            libxkbcommon-dev libxpresent-dev libxrandr-dev libxss-dev \
+            libxxf86vm-dev meson nasm ninja-build pkg-config \
+            python3-docutils wayland-protocols yasm
+          python -m pip install -e .
+
+      - name: Build, probe, verify, and package
+        run: |
+          libmpv-runtime build --target "${{ matrix.target }}"
+          libmpv-runtime verify --target "${{ matrix.target }}"
+          libmpv-runtime package --target "${{ matrix.target }}"
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runtime-${{ matrix.target }}
+          path: dist/libmpv-runtime_*_${{ matrix.target }}*
+          if-no-files-found: error
+          retention-days: 14
+
+  android:
+    name: Android ${{ matrix.abi }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: android-arm64-v8a
+            abi: arm64-v8a
+          - target: android-armeabi-v7a
+            abi: armeabi-v7a
+          - target: android-x86_64
+            abi: x86_64
+          - target: android-x86
+            abi: x86
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            autoconf automake cmake gperf libtool meson nasm ninja-build \
+            pkg-config unzip wget yasm
+          python -m pip install -e .
+
+      - name: Build non-emulator ABI
+        if: matrix.abi != 'x86_64'
+        run: libmpv-runtime build --target "${{ matrix.target }}"
+
+      - name: Build and probe x86_64 in Android emulator
+        if: matrix.abi == 'x86_64'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: libmpv-runtime build --target "${{ matrix.target }}"
+
+      - name: Verify and package
+        run: |
+          libmpv-runtime verify --target "${{ matrix.target }}"
+          libmpv-runtime package --target "${{ matrix.target }}"
+
+      - name: Upload ABI JAR
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runtime-${{ matrix.target }}
+          path: dist/libmpv-runtime_*_${{ matrix.target }}*
+          if-no-files-found: error
+          retention-days: 14
+
+  android-aar:
+    name: Android combined AAR
+    needs: android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install orchestrator
+        run: python -m pip install -e .
+
+      - name: Download ABI JARs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: runtime-android-*
+          path: android-jars
+          merge-multiple: true
+
+      - name: Build combined AAR
+        run: |
+          mkdir -p dist
+          mapfile -t jars < <(find android-jars -type f -name '*.jar' -print | sort)
+          libmpv-runtime android combine-aar \
+            --output "dist/libmpv-runtime_v$(cat VERSION)_android-universal.aar" \
+            "${jars[@]}"
+
+      - name: Upload AAR
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runtime-android-universal
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-build:
+    name: Windows x86_64 cross-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/shinchiro/archlinux@sha256:b8fcc4dadd229d22cf7b1b6e0bf4fa43b938eacfd96e82de20e3d21b26cc6beb
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Install Python package
+        run: python -m pip install --break-system-packages -e .
+
+      - name: Build raw Windows stage
+        run: libmpv-runtime build --target windows-x86_64
+
+      - name: Upload raw stage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-raw-stage
+          path: build/stage/windows-x86_64
+          if-no-files-found: error
+          retention-days: 3
+
+  windows:
+    name: Windows x86_64 native probe
+    needs: windows-build
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install orchestrator
+        run: python -m pip install -e .
+
+      - name: Download raw stage
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: windows-raw-stage
+          path: build/stage/windows-x86_64
+
+      - name: Run native probe
+        shell: pwsh
+        env:
+          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
+          LIBMPV_RUNTIME_TARGET: windows-x86_64
+          LIBMPV_RUNTIME_STAGE: ${{ github.workspace }}\build\stage\windows-x86_64
+          LIBMPV_RUNTIME_WORK: ${{ github.workspace }}\work\windows-x86_64
+          LIBMPV_RUNTIME_EVIDENCE: ${{ github.workspace }}\build\evidence\windows-x86_64.json
+        run: ./scripts/probe/windows.ps1
+
+      - name: Verify and package
+        run: |
+          libmpv-runtime verify --target windows-x86_64
+          libmpv-runtime package --target windows-x86_64
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runtime-windows-x86_64
+          path: dist/libmpv-runtime_*_windows-x86_64*
+          if-no-files-found: error
+          retention-days: 14
+
+  apple:
+    name: ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos-universal
+            label: macOS universal
+          - target: ios-universal
+            label: iOS universal
+    runs-on: macos-26
+    timeout-minutes: 300
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            sandbox = true
+            sandbox-fallback = false
+
+      - name: Enable Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
+        with:
+          use-flakehub: false
+
+      - name: Install orchestrator
+        run: python -m pip install -e .
+
+      - name: Select Xcode
+        run: |
+          xcode_path=/Applications/Xcode_26.6.app
+          test -d "$xcode_path"
+          echo "XCODE_PATH=$xcode_path" >> "$GITHUB_ENV"
+          "$xcode_path/Contents/Developer/usr/bin/xcodebuild" -version
+
+      - name: Build, probe, verify, and package
+        run: |
+          libmpv-runtime build --target "${{ matrix.target }}"
+          libmpv-runtime verify --target "${{ matrix.target }}"
+          libmpv-runtime package --target "${{ matrix.target }}"
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runtime-${{ matrix.target }}
+          path: dist/libmpv-runtime_*_${{ matrix.target }}*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Attest and release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - linux
+      - android-aar
+      - windows
+      - apple
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install orchestrator
+        run: python -m pip install -e .
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: runtime-*
+          path: release
+          merge-multiple: true
+
+      - name: Create release index
+        run: |
+          mapfile -t artifacts < <(find release -maxdepth 1 -type f \
+            ! -name '*.sha256' ! -name 'release-index.json' ! -name 'SHA256SUMS' \
+            -print | sort)
+          libmpv-runtime release index \
+            --output release/release-index.json \
+            "${artifacts[@]}"
+
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: |
+            release/*.aar
+            release/*.jar
+            release/*.tar.gz
+            release/*.zip
+            release/release-index.json
+            release/SHA256SUMS
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" release/* \
+            --verify-tag \
+            --title "libmpv-runtime ${GITHUB_REF_NAME}" \
+            --generate-notes
