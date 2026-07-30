@@ -367,4 +367,3 @@ jobs:
             --verify-tag \
             --title "libmpv-runtime ${GITHUB_REF_NAME}" \
             --generate-notes
-
