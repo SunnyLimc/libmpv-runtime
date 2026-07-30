@@ -30,9 +30,10 @@ cmake \
 
 log "building the pinned MinGW/GCC toolchain"
 # The pinned container currently ships GCC 16, whose default C++ dialect is
-# C++20. GCC 14's bundled libcody expects pre-C++20 u8 literals to be char,
-# so make the host-tool dialect explicit without affecting target packages.
-if ! CXXFLAGS="-O2 -g -std=gnu++17" \
+# newer than the exact C++11 mode required by GCC 14's bundled libcody
+# configure probe. Keep this scoped to the host-tool bootstrap so target
+# packages retain their own compiler flags.
+if ! CXXFLAGS="-O2 -g -std=gnu++11" \
   cmake --build "$build_dir" --target gcc --parallel 1; then
   log "MinGW/GCC bootstrap failed; printing retained ExternalProject logs"
   find "$build_dir/toolchain/gcc-prefix/src/gcc-stamp" \

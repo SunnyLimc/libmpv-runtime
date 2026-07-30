@@ -123,7 +123,7 @@ def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) ->
     assert "+        --disable-werror" in patch
     assert "+    LOG_OUTPUT_ON_FAILURE 1" in patch
     assert "gcc-build-*.log" in script
-    assert 'CXXFLAGS="-O2 -g -std=gnu++17"' in script
+    assert 'CXXFLAGS="-O2 -g -std=gnu++11"' in script
 
 
 def test_windows_workflow_retains_failed_cross_build_logs(repository_root: Path) -> None:
