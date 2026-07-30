@@ -123,6 +123,8 @@ def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) ->
     assert "+    URL https://mirrorservice.org/sites/sourceware.org/pub/gcc/snapshots" not in patch
     assert "+        --disable-werror" in patch
     assert "+    LOG_OUTPUT_ON_FAILURE 1" in patch
+    assert '+    string(LENGTH "${git_tag}" git_tag_length)' in patch
+    assert 'set(reset "${git_tag}")' in patch
     assert '+        set(head_ref "HEAD")' in patch
     assert "rev-parse ${head_ref}" in patch
     assert "gcc-build-*.log" in script

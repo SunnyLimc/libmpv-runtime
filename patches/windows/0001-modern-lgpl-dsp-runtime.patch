@@ -277,8 +277,17 @@ diff --git a/packages/zlib.cmake b/packages/zlib.cmake
 diff --git a/cmake/custom_steps.cmake b/cmake/custom_steps.cmake
 --- a/cmake/custom_steps.cmake
 +++ b/cmake/custom_steps.cmake
-@@ -83,14 +83,17 @@ function(force_rebuild_git _name)
-     if("${git_remote_name}" STREQUAL "" AND NOT "${git_tag}" STREQUAL "")
+@@ -83,19 +83,27 @@ function(force_rebuild_git _name)
+     get_property(stamp_dir TARGET ${_name} PROPERTY _EP_STAMP_DIR)
+     get_property(source_dir TARGET ${_name} PROPERTY _EP_SOURCE_DIR)
+ 
+-    if("${git_remote_name}" STREQUAL "" AND NOT "${git_tag}" STREQUAL "")
++    string(LENGTH "${git_tag}" git_tag_length)
++
++    if(git_tag_length EQUAL 40 AND "${git_tag}" MATCHES "^[0-9a-fA-F]+$")
++        set(reset "${git_tag}")
++        set(head_ref "HEAD")
++    elseif("${git_remote_name}" STREQUAL "" AND NOT "${git_tag}" STREQUAL "")
          # GIT_REMOTE_NAME is not set when commit hash is specified
          set(reset "")
 +        set(head_ref "HEAD")
