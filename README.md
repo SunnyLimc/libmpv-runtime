@@ -19,8 +19,9 @@ probe demonstrates that gain is actually applied.
 | macOS | `arm64`, `x86_64` | universal XCFramework | `Mpv.framework/Mpv` |
 | iOS | device `arm64`; simulator `arm64`, `x86_64` | XCFramework | `Mpv.framework/Mpv` |
 
-Android runtimes target API 23 or newer and use 16 KiB-compatible ELF page
-alignment.
+Android runtimes target API 23 or newer. The 64-bit ABIs enforce the 16 KiB
+ELF page alignment required for modern 64-bit Android devices; legacy 32-bit
+ABIs enforce their supported 4 KiB minimum.
 
 The first release flavor is `video-dsp-lgpl3`. It is intentionally built
 without GPL or non-free components. The aggregate runtime license is

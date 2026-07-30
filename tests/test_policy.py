@@ -173,14 +173,19 @@ def test_ios_consumer_imports_the_packaged_framework(
     assert "Mpv.framework/Headers" not in script
 
 
-def test_android_verifies_16k_elf_load_alignment(repository_root: Path) -> None:
+def test_android_verifies_abi_appropriate_elf_load_alignment(
+    repository_root: Path,
+) -> None:
     script = (repository_root / "scripts" / "build" / "android.sh").read_text()
     common = (repository_root / "scripts" / "build" / "common.sh").read_text()
     patch = (
         repository_root / "patches" / "android" / "0001-pin-lgpl-dsp-runtime.patch"
     ).read_text()
     assert "require_elf_load_alignment()" in common
-    assert 'require_elf_load_alignment "$readelf" "$library" 16384' in script
+    assert script.count("minimum_elf_alignment=16384") == 2
+    assert script.count("minimum_elf_alignment=4096") == 2
+    assert '"$readelf" "$library" "$minimum_elf_alignment"' in script
+    assert 'require_elf_load_alignment "$readelf" "$library" 16384' not in script
     assert '"$nm" -D "$abi_dir/libmpv.so" >"$mpv_symbols"' in script
     assert 'libmpv.so" | grep -q' not in script
     assert 'bash "$LIBMPV_RUNTIME_ROOT/scripts/probe/android-emulator.sh"' in script

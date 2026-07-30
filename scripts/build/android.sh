@@ -7,18 +7,22 @@ case "$LIBMPV_RUNTIME_ARCH" in
   arm64-v8a)
     upstream_arch=arm64
     ndk_triple=aarch64-linux-android
+    minimum_elf_alignment=16384
     ;;
   armeabi-v7a)
     upstream_arch=armv7l
     ndk_triple=arm-linux-androideabi
+    minimum_elf_alignment=4096
     ;;
   x86_64)
     upstream_arch=x86_64
     ndk_triple=x86_64-linux-android
+    minimum_elf_alignment=16384
     ;;
   x86)
     upstream_arch=x86
     ndk_triple=i686-linux-android
+    minimum_elf_alignment=4096
     ;;
   *) printf 'unsupported Android ABI: %s\n' "$LIBMPV_RUNTIME_ARCH" >&2; exit 1 ;;
 esac
@@ -124,7 +128,8 @@ program_headers="$LIBMPV_RUNTIME_WORK/elf-program-headers.txt"
 while IFS= read -r -d '' library; do
   printf '\n== %s ==\n' "$(basename "$library")" >>"$program_headers"
   "$readelf" -lW "$library" >>"$program_headers"
-  require_elf_load_alignment "$readelf" "$library" 16384
+  require_elf_load_alignment \
+    "$readelf" "$library" "$minimum_elf_alignment"
 done < <(find "$abi_dir" -maxdepth 1 -type f -name '*.so' -print0)
 
 copy_source_tree_licenses \
