@@ -30,9 +30,9 @@ native consumers but are not required by Dart FFI.
 
 ## Linux
 
-Install the `.deb` or place the runtime directory on the loader path before
-starting Flutter. `libmpv.so`, `libmpv.so.1`, and `libmpv.so.2` resolve to the
-same release binary.
+Extract the target `.tar.gz` and place its `lib` directory on the loader path
+before starting Flutter. `libmpv.so`, `libmpv.so.1`, and `libmpv.so.2` resolve
+to the same release binary.
 
 ## macOS and iOS
 

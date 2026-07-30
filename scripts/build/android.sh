@@ -99,6 +99,13 @@ fi
 "$nm" -D "$abi_dir/libmediakitandroidhelper.so" |
   grep -q ' MediaKitAndroidHelperGetJavaVM$'
 "$readelf" -d "$abi_dir/libmpv.so" >"$LIBMPV_RUNTIME_WORK/libmpv.dynamic.txt"
+program_headers="$LIBMPV_RUNTIME_WORK/elf-program-headers.txt"
+: >"$program_headers"
+while IFS= read -r -d '' library; do
+  printf '\n== %s ==\n' "$(basename "$library")" >>"$program_headers"
+  "$readelf" -lW "$library" >>"$program_headers"
+  require_elf_load_alignment "$readelf" "$library" 16384
+done < <(find "$abi_dir" -maxdepth 1 -type f -name '*.so' -print0)
 
 copy_source_licenses "$LIBMPV_RUNTIME_STAGE/LICENSES" \
   "$LIBMPV_RUNTIME_BUILDER/buildscripts/deps/mpv" \

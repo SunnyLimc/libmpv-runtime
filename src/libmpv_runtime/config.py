@@ -86,6 +86,7 @@ def load_runtime_lock(path: Path) -> RuntimeLock:
         "android_ndk",
         "android_api",
         "windows_container",
+        "meson",
         "linux_image",
         "linux_arm_image",
         "apple_image",

@@ -22,6 +22,7 @@ actionlint = "1.7.7"
 android_ndk = "29.0.14206865"
 android_api = 23
 windows_container = "ghcr.io/shinchiro/archlinux@sha256:b8fcc4dadd229d22cf7b1b6e0bf4fa43b938eacfd96e82de20e3d21b26cc6beb"
+meson = "1.11.0"
 linux_image = "ubuntu-24.04"
 linux_arm_image = "ubuntu-24.04-arm"
 apple_image = "macos-26"

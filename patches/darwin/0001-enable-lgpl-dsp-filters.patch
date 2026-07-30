@@ -53,7 +53,7 @@ diff --git a/Makefile b/Makefile
 index d809c74..fc16075 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -19,7 +19,10 @@ all: build
+@@ -18,12 +18,15 @@ all: build
  # After the build, .nix/config/xcode.path and .nix/config/version.txt are
  # restored to their committed values.
  .PHONY: build
@@ -66,3 +66,8 @@ index d809c74..fc16075 100644
  	$(if $(XCODE_PATH),echo '$(XCODE_PATH)' > .nix/config/xcode.path;,) \
  	$(if $(VERSION),echo '$(VERSION)' > .nix/config/version.txt;,) \
  	nix build -v -L \
+ 		--option sandbox true \
+ 		--option sandbox-fallback false \
+ 		$(if $(XCODE_PATH),--option extra-sandbox-paths $(XCODE_PATH),) \
+-		$(if $(TARGET),.#$(TARGET),)
++		$(if $(TARGET),path:.#$(TARGET),path:.)

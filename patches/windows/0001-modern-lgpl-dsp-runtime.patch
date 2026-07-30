@@ -219,3 +219,15 @@ diff --git a/packages/dav1d.cmake b/packages/dav1d.cmake
 @@ -5,1 +5,2 @@
      SOURCE_DIR ${SOURCE_LOCATION}
 +    GIT_TAG 54706fc6bc0cdecab7e9593974a4039cc038fca7
+diff --git a/packages/zlib.cmake b/packages/zlib.cmake
+--- a/packages/zlib.cmake
++++ b/packages/zlib.cmake
+@@ -4,7 +4,7 @@ ExternalProject_Add(zlib
+     GIT_CLONE_FLAGS "--filter=tree:0"
+     UPDATE_COMMAND ""
+     GIT_REMOTE_NAME origin
+-    GIT_TAG develop
++    GIT_TAG e15d0078380d0619615176fe4c6ceede55fe534e
+     CONFIGURE_COMMAND ${EXEC} CONF=1 cmake -H<SOURCE_DIR> -B<BINARY_DIR>
+         -G Ninja
+         -DCMAKE_BUILD_TYPE=Release

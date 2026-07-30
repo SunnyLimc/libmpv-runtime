@@ -74,7 +74,8 @@ log "building static dependencies and shared libmpv"
   ./build "-j${LIBMPV_RUNTIME_JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 )
 
-require_ffmpeg_filters "$LIBMPV_RUNTIME_BUILDER/ffmpeg_build/ffbuild/config.h"
+config_header="$(find_ffmpeg_config_header "$LIBMPV_RUNTIME_BUILDER/ffmpeg_build")"
+require_ffmpeg_filters "$config_header"
 
 log "normalizing Linux runtime layout"
 rm -rf "$LIBMPV_RUNTIME_STAGE"

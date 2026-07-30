@@ -9,25 +9,27 @@ if [[ "$LIBMPV_RUNTIME_ARCH" != "x86_64" ]]; then
 fi
 
 build_dir="$LIBMPV_RUNTIME_BUILDER/build_x86_64"
-toolchain_root="$LIBMPV_RUNTIME_WORK/clang-root"
+toolchain_root="$LIBMPV_RUNTIME_WORK/gcc-root"
 source_cache="$LIBMPV_RUNTIME_WORK/source-cache"
 mingw_prefix="$LIBMPV_RUNTIME_WORK/mingw/x86_64-w64-mingw32"
 mkdir -p "$toolchain_root" "$source_cache" "$mingw_prefix"
 
-log "configuring pinned MinGW/LLVM cross-build"
+log "configuring pinned MinGW/GCC cross-build"
 cmake \
   -DTARGET_ARCH=x86_64-w64-mingw32 \
-  -DCOMPILER_TOOLCHAIN=clang \
+  -DCOMPILER_TOOLCHAIN=gcc \
   -DCMAKE_INSTALL_PREFIX="$toolchain_root" \
   -DMINGW_INSTALL_PREFIX="$mingw_prefix" \
   -DSINGLE_SOURCE_LOCATION="$source_cache" \
   -DRUSTUP_LOCATION="$toolchain_root/install_rustup" \
   -DENABLE_CCACHE=ON \
-  -DCLANG_PACKAGES_LTO=ON \
   -G Ninja \
   --fresh \
   -B "$build_dir" \
   -S "$LIBMPV_RUNTIME_BUILDER"
+
+log "building the pinned MinGW/GCC toolchain"
+cmake --build "$build_dir" --target gcc --parallel
 
 log "building the Windows libmpv dependency closure"
 cmake --build "$build_dir" --target mpv --parallel
@@ -43,7 +45,7 @@ require_git_head "$source_cache/libplacebo" \
 require_git_head "$source_cache/dav1d" \
   "$(python -m libmpv_runtime.query source dav1d revision)"
 
-config_header="$(find "$build_dir" -path '*/ffbuild/config.h' -print -quit)"
+config_header="$(find_ffmpeg_config_header "$build_dir")"
 require_ffmpeg_filters "$config_header"
 
 log "normalizing Windows runtime layout"

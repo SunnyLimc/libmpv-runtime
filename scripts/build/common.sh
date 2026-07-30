@@ -56,6 +56,41 @@ require_ffmpeg_filters() {
   done
 }
 
+find_ffmpeg_config_header() {
+  local root="$1"
+  local candidate
+  while IFS= read -r candidate; do
+    if grep -q '^#define CONFIG_LOUDNORM_FILTER ' "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done < <(find "$root" -type f -name config.h -print)
+  printf 'FFmpeg config.h with filter declarations was not found under %s\n' \
+    "$root" >&2
+  return 1
+}
+
+require_elf_load_alignment() {
+  local readelf="$1"
+  local library="$2"
+  local minimum="$3"
+  local alignment value
+  local seen=0
+  while IFS= read -r alignment; do
+    seen=1
+    value=$((16#${alignment#0x}))
+    if (( value < minimum )); then
+      printf 'ELF LOAD alignment is too small in %s: %s < 0x%x\n' \
+        "$library" "$alignment" "$minimum" >&2
+      return 1
+    fi
+  done < <("$readelf" -lW "$library" | awk '$1 == "LOAD" { print $NF }')
+  if (( seen == 0 )); then
+    printf 'ELF LOAD segments were not found in %s\n' "$library" >&2
+    return 1
+  fi
+}
+
 copy_source_licenses() {
   local destination="$1"
   shift

@@ -40,12 +40,22 @@ def test_workflow_toolchains_match_lock(repository_root: Path, config: object) -
     workflow = (repository_root / ".github" / "workflows" / "runtime.yml").read_text()
     for key in (
         "windows_container",
+        "meson",
         "linux_image",
         "linux_arm_image",
         "apple_image",
         "xcode_path",
     ):
         assert str(config.lock.toolchains[key]) in workflow
+
+
+def test_darwin_builder_uses_path_flake_for_ignored_worktree(
+    repository_root: Path,
+) -> None:
+    patch = (
+        repository_root / "patches" / "darwin" / "0001-enable-lgpl-dsp-filters.patch"
+    ).read_text()
+    assert "+\t\t$(if $(TARGET),path:.#$(TARGET),path:.)" in patch
 
 
 def test_platform_patches_enforce_lgpl_and_required_filters(repository_root: Path) -> None:
@@ -73,8 +83,9 @@ def test_platform_patches_enforce_lgpl_and_required_filters(repository_root: Pat
 
 def test_patches_do_not_add_moving_source_references(repository_root: Path) -> None:
     moving = re.compile(
-        r"(?:GIT_TAG\s+(?:main|master|release/)|raw/(?:main|master)|"
-        r"archive/(?:refs/heads/)?(?:main|master))"
+        r"(?:GIT_TAG\s+(?:main|master|develop|release/)|"
+        r"raw/(?:main|master|develop)|"
+        r"archive/(?:refs/heads/)?(?:main|master|develop))"
     )
     for patch in sorted((repository_root / "patches").rglob("*.patch")):
         added_lines = "\n".join(
@@ -93,3 +104,30 @@ def test_behavior_probe_uses_decoded_pcm_output(repository_root: Path) -> None:
     common = (repository_root / "scripts" / "build" / "common.sh").read_text()
     assert "verify-gain" in common
     assert "--expected-db -6.0206" in common
+
+
+def test_windows_build_bootstraps_toolchain_before_mpv(repository_root: Path) -> None:
+    script = (repository_root / "scripts" / "build" / "windows.sh").read_text()
+    toolchain = 'cmake --build "$build_dir" --target gcc --parallel'
+    runtime = 'cmake --build "$build_dir" --target mpv --parallel'
+    assert "-DCOMPILER_TOOLCHAIN=gcc" in script
+    assert script.index(toolchain) < script.index(runtime)
+
+
+def test_builds_locate_ffmpeg_config_by_filter_declarations(
+    repository_root: Path,
+) -> None:
+    common = (repository_root / "scripts" / "build" / "common.sh").read_text()
+    assert "find_ffmpeg_config_header()" in common
+    assert "CONFIG_LOUDNORM_FILTER" in common
+    for platform in ("linux", "windows"):
+        script = (repository_root / "scripts" / "build" / f"{platform}.sh").read_text()
+        assert "find_ffmpeg_config_header" in script
+        assert "ffbuild/config.h" not in script
+
+
+def test_android_verifies_16k_elf_load_alignment(repository_root: Path) -> None:
+    script = (repository_root / "scripts" / "build" / "android.sh").read_text()
+    common = (repository_root / "scripts" / "build" / "common.sh").read_text()
+    assert "require_elf_load_alignment()" in common
+    assert 'require_elf_load_alignment "$readelf" "$library" 16384' in script
