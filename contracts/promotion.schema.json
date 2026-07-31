@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SunnyLimc/libmpv-runtime/contracts/promotion.schema.json",
+  "title": "libmpv-runtime promotion",
+  "type": "object",
+  "required": ["schemaVersion", "id", "createdAt", "repository", "contract", "artifacts", "linux", "evidence"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^runtime-[0-9]{8}\\.[1-9][0-9]*$" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "repository": { "type": "string", "format": "uri" },
+    "contract": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "const": "contracts/runtime.toml" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": { "type": "object" },
+    "linux": { "type": "object" },
+    "evidence": { "type": "object" }
+  },
+  "additionalProperties": false
+}

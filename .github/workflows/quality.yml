@@ -3,9 +3,7 @@ name: quality
 on:
   pull_request:
   push:
-    branches:
-      - main
-      - "codex/**"
+    branches: [main, "codex/**"]
   workflow_dispatch:
 
 permissions:
@@ -20,58 +18,38 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - name: Check out repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.12.0"
           enable-cache: true
-
-      - name: Install tooling
-        run: uv sync --locked --extra dev
-
-      - name: Validate lock and target contracts
+      - run: uv sync --locked --extra dev
+      - name: Validate the contract
         run: |
-          uv run libmpv-runtime lock validate
-          uv run libmpv-runtime target list
-
+          uv run libmpv-runtime contract validate
+          uv run libmpv-runtime contract list
+          uv run libmpv-runtime source list
       - name: Lint and type-check
         run: |
           uv run ruff format --check .
           uv run ruff check .
           uv run mypy
-
-      - name: Run unit tests
+      - name: Run hermetic tests
         run: uv run pytest --cov=libmpv_runtime --cov-report=term-missing
-
-      - name: Lint GitHub Actions
-        run: |
-          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          "$(go env GOPATH)/bin/actionlint"
-
-      - name: Validate shell and PowerShell syntax
+      - name: Validate scripts
         shell: pwsh
         run: |
           Get-ChildItem scripts -Recurse -Filter *.sh | ForEach-Object {
             bash -n $_.FullName
-            if ($LASTEXITCODE -ne 0) {
-              throw "bash syntax failed: $($_.FullName)"
-            }
+            if ($LASTEXITCODE -ne 0) { throw "bash syntax failed: $($_.FullName)" }
           }
           Get-ChildItem scripts -Recurse -Filter *.ps1 | ForEach-Object {
             [void][scriptblock]::Create((Get-Content -Raw -LiteralPath $_.FullName))
           }
-
-      - name: Verify locked builder archives and patch series
+      - name: Lint workflows
         run: |
-          uv run libmpv-runtime source prepare --target android-arm64-v8a
-          uv run libmpv-runtime source prepare --target windows-x86_64
-          uv run libmpv-runtime source prepare --target linux-x86_64
-          uv run libmpv-runtime source prepare --target macos-universal
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)/bin/actionlint"

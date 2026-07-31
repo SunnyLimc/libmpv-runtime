@@ -1,0 +1,40 @@
+schema_version = 1
+
+# Source rules intentionally select a release channel, not a dependency version.
+# The selected release, commit, asset URL and digest become immutable only in a
+# promotion manifest after all validators pass.
+
+[source.windows_libmpv]
+repository = "zhongfly/mpv-winbuild"
+release = "latest"
+asset_patterns = ['^mpv-dev-lgpl-x86_64-[0-9]+-git-[0-9a-f]+\.7z$']
+
+[source.windows_angle]
+repository = "alexmercerind/flutter-windows-ANGLE-OpenGL-ES"
+release = "latest"
+asset_patterns = ['^ANGLE\.7z$']
+
+[source.android_libmpv]
+repository = "mpv-android/mpv-android"
+release = "latest"
+asset_patterns = ['^app-default-universal-release\.apk$']
+
+[source.android_helper]
+repository = "media-kit/libmpv-android-video-build"
+release = "latest"
+asset_patterns = [
+  '^default-arm64-v8a\.jar$',
+  '^default-armeabi-v7a\.jar$',
+  '^default-x86_64\.jar$',
+  '^default-x86\.jar$',
+]
+
+[source.darwin_macos]
+repository = "media-kit/libmpv-darwin-build"
+release = "latest"
+asset_patterns = ['^libmpv-xcframeworks_v[^_]+_macos-universal-video-encodersgpl\.tar\.gz$']
+
+[source.darwin_ios]
+repository = "media-kit/libmpv-darwin-build"
+release = "latest"
+asset_patterns = ['^libmpv-xcframeworks_v[^_]+_ios-universal-video-encodersgpl\.tar\.gz$']

@@ -1,0 +1,62 @@
+schema_version = 2
+minimum_media_kit = "1.2.6"
+minimum_media_kit_video = "2.0.1"
+
+required_audio_filters = [
+  "loudnorm",
+  "dynaudnorm",
+  "acompressor",
+  "alimiter",
+  "volume",
+  "aresample",
+  "ebur128",
+  "astats",
+]
+
+[artifact.windows-x86_64]
+platform = "windows"
+architectures = ["x86_64"]
+sources = ["windows_libmpv", "windows_angle"]
+package = "zip"
+load_names = ["libmpv-2.dll"]
+
+[artifact.android]
+platform = "android"
+architectures = ["arm64-v8a", "armeabi-v7a", "x86_64", "x86"]
+sources = ["android_libmpv", "android_helper"]
+package = "zip"
+load_names = ["libmpv.so", "libmediakitandroidhelper.so"]
+
+[artifact.macos]
+platform = "macos"
+architectures = ["arm64", "x86_64"]
+sources = ["darwin_macos"]
+package = "xcframeworks"
+load_names = ["Mpv.framework/Mpv"]
+
+[artifact.ios]
+platform = "ios"
+architectures = ["arm64", "simulator-arm64", "simulator-x86_64"]
+sources = ["darwin_ios"]
+package = "xcframeworks"
+load_names = ["Mpv.framework/Mpv"]
+
+[linux]
+soname_major = 2
+loader_candidates = ["libmpv.so", "libmpv.so.2"]
+build_packages = ["libmpv-dev", "libepoxy-dev"]
+
+[linux.profile.debian-12]
+runtime_packages = ["libmpv2"]
+
+[linux.profile.debian-13]
+runtime_packages = ["libmpv2"]
+
+[linux.profile."ubuntu-24.04"]
+runtime_packages = ["libmpv2"]
+
+[linux.profile.fedora]
+runtime_packages = ["mpv-libs"]
+
+[linux.profile.arch]
+runtime_packages = ["mpv"]

@@ -3,10 +3,14 @@
 /.pytest_cache/
 /.ruff_cache/
 /.coverage
+/.dart_tool/
 /build/
 /dist/
 /work/
 /wheelhouse/
+fixtures/media_kit_consumer/.dart_tool/
+fixtures/media_kit_consumer/.flutter-plugins-dependencies
+fixtures/media_kit_consumer/pubspec.lock
 *.egg-info/
 __pycache__/
 *.py[cod]

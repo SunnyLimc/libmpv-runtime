@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import gzip
+import stat
 import tarfile
 import zipfile
 from pathlib import Path
+
+import pytest
 
 from libmpv_runtime.archive import deterministic_tar_gz, deterministic_zip
 from libmpv_runtime.files import sha256_file
@@ -43,3 +46,28 @@ def test_tar_gz_packaging_is_bit_reproducible(tmp_path: Path) -> None:
         tarfile.open(fileobj=compressed) as archive,
     ):
         assert archive.getnames() == ["a.txt", "nested", "nested/b.txt"]
+
+
+def test_apple_style_symlinks_are_preserved_with_posix_targets(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    _fixture(source)
+    link = source / "current"
+    try:
+        link.symlink_to("nested\\b.txt")
+    except OSError as error:
+        pytest.skip(f"symlink creation is unavailable: {error}")
+
+    zipped = tmp_path / "framework.zip"
+    deterministic_zip(source, zipped, 1_700_000_000)
+    with zipfile.ZipFile(zipped) as archive:
+        info = archive.getinfo("current")
+        assert stat.S_IFMT(info.external_attr >> 16) == stat.S_IFLNK
+        assert archive.read(info) == b"nested/b.txt"
+
+    bundled = tmp_path / "framework.tar.gz"
+    deterministic_tar_gz(source, bundled, 1_700_000_000)
+    with tarfile.open(bundled, mode="r:gz") as archive:
+        member = archive.getmember("current")
+        assert member.issym()
+        assert member.linkname == "nested/b.txt"

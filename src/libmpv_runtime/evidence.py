@@ -7,80 +7,93 @@ from .errors import VerificationError
 from .files import read_json, write_json
 
 
-def write_evidence(
+def create_structure_evidence(
     path: Path,
     *,
     target: str,
-    filters: list[str],
-    structure: bool,
-    behavior: bool,
-    consumer: bool,
-    behavior_mode: str = "native",
-    behavior_reference_target: str | None = None,
-    details: dict[str, Any] | None = None,
-) -> None:
-    if behavior_mode not in {"native", "source-equivalent"}:
-        raise ValueError(f"unsupported behavior evidence mode: {behavior_mode}")
-    if behavior_mode == "source-equivalent":
-        if not behavior_reference_target or behavior_reference_target == target:
-            raise ValueError(
-                "source-equivalent behavior evidence needs a different reference target"
-            )
-    elif behavior_reference_target is not None:
-        raise ValueError("native behavior evidence cannot name a reference target")
-    evidence_details = dict(details or {})
-    behavior_details: dict[str, str] = {"mode": behavior_mode}
-    if behavior_reference_target is not None:
-        behavior_details["referenceTarget"] = behavior_reference_target
-    evidence_details["behavior"] = behavior_details
+    filters: tuple[str, ...],
+    details: dict[str, Any],
+    provenance: Any,
+) -> Path:
     write_json(
         path,
         {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "target": target,
-            "filters": sorted(filters),
-            "checks": {
-                "structure": structure,
-                "behavior": behavior,
-                "consumer": consumer,
-            },
-            "details": evidence_details,
+            "requiredFilters": list(filters),
+            "checks": {"structure": True, "behavior": False, "consumer": False},
+            "structure": details,
+            "behavior": None,
+            "consumer": None,
+            "provenance": provenance,
         },
     )
+    return path
 
 
-def load_evidence(path: Path, target: str, required_filters: tuple[str, ...]) -> dict[str, Any]:
+def _load(path: Path) -> dict[str, Any]:
     value = read_json(path)
-    if not isinstance(value, dict) or value.get("schemaVersion") != 1:
+    if not isinstance(value, dict) or value.get("schemaVersion") != 2:
         raise VerificationError(f"invalid evidence schema: {path}")
-    if value.get("target") != target:
-        raise VerificationError(f"evidence target mismatch in {path}")
-    filters = value.get("filters")
-    if not isinstance(filters, list) or not all(isinstance(item, str) for item in filters):
-        raise VerificationError(f"invalid filters in {path}")
-    missing = set(required_filters) - set(filters)
-    if missing:
-        raise VerificationError(f"evidence is missing filters: {', '.join(sorted(missing))}")
     checks = value.get("checks")
     if not isinstance(checks, dict):
-        raise VerificationError(f"invalid checks in {path}")
+        raise VerificationError(f"evidence checks are missing: {path}")
+    return value
+
+
+def record_behavior(
+    path: Path,
+    *,
+    filters: list[str],
+    measured_gain_db: float,
+    mode: str,
+    reference_target: str | None,
+) -> Path:
+    value = _load(path)
+    required = value.get("requiredFilters")
+    if not isinstance(required, list) or set(required) - set(filters):
+        raise VerificationError("behavior probe did not exercise every required filter")
+    if mode not in {"native", "source-equivalent"}:
+        raise VerificationError(f"invalid behavior mode: {mode}")
+    target = value.get("target")
+    if mode == "native" and reference_target is not None:
+        raise VerificationError("native behavior cannot reference another target")
+    if mode == "source-equivalent" and (not reference_target or reference_target == target):
+        raise VerificationError("source-equivalent behavior needs a different target")
+    checks = value["checks"]
+    assert isinstance(checks, dict)
+    checks["behavior"] = True
+    value["behavior"] = {
+        "mode": mode,
+        "referenceTarget": reference_target,
+        "filters": sorted(filters),
+        "measuredGainDb": measured_gain_db,
+    }
+    write_json(path, value)
+    return path
+
+
+def record_consumer(path: Path, *, details: dict[str, Any]) -> Path:
+    value = _load(path)
+    checks = value["checks"]
+    assert isinstance(checks, dict)
+    checks["consumer"] = True
+    value["consumer"] = details
+    write_json(path, value)
+    return path
+
+
+def load_releasable_evidence(path: Path, target: str, filters: tuple[str, ...]) -> dict[str, Any]:
+    value = _load(path)
+    if value.get("target") != target:
+        raise VerificationError(f"evidence target mismatch: {path}")
+    if value.get("requiredFilters") != list(filters):
+        raise VerificationError(f"evidence contract mismatch: {path}")
+    checks = value["checks"]
+    assert isinstance(checks, dict)
     failed = [
         name for name in ("structure", "behavior", "consumer") if checks.get(name) is not True
     ]
     if failed:
-        raise VerificationError(f"evidence checks failed: {', '.join(failed)}")
-    details = value.get("details")
-    behavior_details = details.get("behavior") if isinstance(details, dict) else None
-    if not isinstance(behavior_details, dict):
-        raise VerificationError(f"behavior provenance is missing from {path}")
-    mode = behavior_details.get("mode")
-    reference = behavior_details.get("referenceTarget")
-    if mode == "native":
-        if reference is not None:
-            raise VerificationError(f"native behavior evidence has a reference target in {path}")
-    elif mode == "source-equivalent":
-        if not isinstance(reference, str) or not reference or reference == target:
-            raise VerificationError(f"invalid source-equivalent reference target in {path}")
-    else:
-        raise VerificationError(f"invalid behavior provenance mode in {path}")
+        raise VerificationError(f"evidence is not releasable; failed: {', '.join(failed)}")
     return value

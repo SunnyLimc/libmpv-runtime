@@ -1,7 +1,7 @@
-"""Cross-platform libmpv runtime build orchestration."""
+"""Validated upstream libmpv runtime intake and promotion."""
 
 from __future__ import annotations
 
 __all__ = ["__version__"]
 
-__version__ = "0.1.0a1"
+__version__ = "0.2.0a1"

@@ -1,17 +1,10 @@
-# Consuming a release from `media_kit`
+# Using a promotion
 
-This directory documents the intentionally small integration boundary. The
-Flutter application continues to depend on `media_kit`; it does not depend on a
-second player plugin.
+Download the exact-name package zip for the target platform from one
+`runtime-YYYYMMDD.N` release, extract it into the application's `third_party`
+directory, and use a Dart path dependency. Keep the promotion ID with the app's
+dependency update so rollback is a normal source-control change.
 
-For Android, place the release AAR in an internal Maven repository or unpack
-the matching ABI JARs from the release and declare them as Gradle file
-dependencies. For Windows, replace the archive downloaded by
-`media_kit_libs_windows_video` with the matching `libmpv-runtime` archive. For
-Apple, embed every XCFramework from one release as a set. Linux may load the
-release directory through the system loader.
-
-At startup, compare the embedded `build-manifest.json` against the allowed
-runtime version before enabling DSP-dependent product behavior. Unknown
-runtimes should retain normal playback and skip unsupported normalization
-filters.
+The executable runtime archive is fetched and SHA-256 verified by the generated
+package during the native build. Linux is not downloaded here; install the
+distribution's `libmpv.so.2` and build development packages instead.

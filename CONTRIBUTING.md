@@ -1,14 +1,17 @@
 # Contributing
 
-Build inputs are supply-chain inputs. Changes to `runtime.lock.toml`, patches,
-workflows, licenses, probes, or packaging policy require:
+Changes to the runtime contract, source selection, normalization, validation,
+package generation, or workflows must pass:
 
-1. a focused explanation in the pull request;
-2. `python -m pytest`;
-3. `libmpv-runtime lock validate`;
-4. the affected real platform build and runtime probe;
-5. inspection of the generated manifest, SBOM, and checksums.
+```shell
+uv run libmpv-runtime contract validate
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy
+uv run pytest
+```
 
-Do not weaken a verification gate to make an artifact pass. If a platform
-cannot demonstrate the capability, mark the target unsupported until the
-runtime or probe is fixed.
+Run the affected native probe and real MediaKit consumer before handoff. Do not
+weaken a gate or manually mark evidence true to accept a new upstream release.
+When a candidate fails, preserve the previous promotion and fix the validator,
+source rule, or upstream issue explicitly.

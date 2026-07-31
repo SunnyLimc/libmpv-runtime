@@ -1,38 +1,37 @@
-# Release policy
+# Release and promotion
 
-## Versioning
+## Identity
 
-The repository version identifies a complete platform set. Upstream component
-versions are recorded independently in every artifact manifest.
+An accepted set is named `runtime-YYYYMMDD.N`. The identifier is immutable and
+contains complete Windows, Android, macOS, and iOS assets. Linux contributes a
+compatibility contract and validation reports, not a bundled library.
 
-## Required release assets
+“Do not pin builder versions” applies only to upstream candidate selection.
+Every promoted byte and every consumer URL is pinned by promotion ID and
+SHA-256. Upstream `latest` never appears in a generated MediaKit package.
 
-- one normalized archive for every supported target;
-- Android combined AAR and ABI JARs;
-- Apple XCFramework archives;
-- `SHA256SUMS`;
-- `release-index.json`;
-- SPDX 2.3 SBOMs;
-- source-lock and corresponding-source metadata;
-- GitHub artifact attestations when the repository plan supports them.
+## Workflows
 
-## Reproducibility
+1. `quality.yml` is hermetic and performs no upstream downloads.
+2. `discover.yml` resolves release channels and retains candidate JSON for 14
+   days. Discovery cannot publish.
+3. `validate.yml` downloads exact candidate assets, normalizes them, performs
+   native and Flutter consumer gates, and uploads short-lived validation
+   artifacts. It never builds mpv.
+4. `promote.yml` is given one successful validation run ID. It refuses missing
+   or incomplete evidence, copies the exact validated artifacts, creates
+   `promotion.json` and `SHA256SUMS`, generates drop-in package zips, and creates
+   the GitHub release. The validated Linux profile report is copied into the
+   release and bound by its SHA-256 in `promotion.json`.
 
-Archives normalize entry order, timestamps, uid/gid, and permissions using
-`source_date_epoch` from the lock. Bit-for-bit equality is checked between two
-packaging passes in CI. Native compiler output may still contain platform
-toolchain identifiers; those are captured in the build manifest.
+If any upstream, structure, filter, decoded-PCM, online source, or consumer gate
+fails, no promotion is created. The previous release remains usable and there
+is no automatic fallback compile.
 
-## Promotion
+## Local validation during runner limits
 
-A tag does not rebuild unreviewed source. Release assembly downloads artifacts
-produced for the exact tag commit, verifies their embedded commit and checksums,
-records that commit in `release-index.json`, then creates the GitHub release. A
-missing or failed target blocks promotion.
-
-GitHub-hosted artifact attestations are automatic for public repositories. A
-private repository can enable them by setting the repository variable
-`ENABLE_GITHUB_ATTESTATIONS=true` when its owner has GitHub Enterprise Cloud.
-Private repositories on other plans still publish the checksum set, embedded
-build manifests, exact source locks, and SPDX SBOMs; the workflow records why
-the GitHub attestation step was skipped.
+Windows and Android candidate jobs use the same scripts as GitHub Actions.
+WSL validates the distribution-owned Linux runtime. Apple structure can be
+checked anywhere after intake, while native Apple behavior and simulator
+consumer gates remain macOS-runner requirements. A promotion cannot turn a
+missing native gate into a pass.

@@ -4,23 +4,30 @@ import re
 import tomllib
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 from .errors import ConfigurationError
-from .models import BuilderLock, RepositoryConfig, RuntimeLock, SourceLock, Target
+from .models import (
+    ArtifactContract,
+    LinuxContract,
+    LinuxProfile,
+    RepositoryConfig,
+    RuntimeContract,
+    SourceRule,
+)
 
-_TARGET_NAME = re.compile(r"^[a-z0-9]+(?:[a-z0-9_-]*[a-z0-9])?$")
-_FULL_REVISION = re.compile(r"^[0-9a-f]{40}$")
-_SUPPORTED_PLATFORMS = frozenset({"android", "windows", "linux", "macos", "ios"})
-_SUPPORTED_PACKAGES = frozenset({"jar", "zip", "tar.gz", "xcframework"})
+_SUPPORTED_PLATFORMS = frozenset({"android", "windows", "macos", "ios"})
+_SUPPORTED_PACKAGES = frozenset({"zip", "xcframeworks"})
+_REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
 def find_repository_root(start: Path | None = None) -> Path:
     candidate = (start or Path.cwd()).resolve()
     for directory in (candidate, *candidate.parents):
-        if (directory / "runtime.lock.toml").is_file() and (directory / "targets.toml").is_file():
+        if (directory / "contracts" / "runtime.toml").is_file() and (
+            directory / "sources" / "upstreams.toml"
+        ).is_file():
             return directory
-    raise ConfigurationError("could not find runtime.lock.toml and targets.toml")
+    raise ConfigurationError("could not find contracts/runtime.toml and sources/upstreams.toml")
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
@@ -40,140 +47,113 @@ def _table(value: Any, owner: str) -> dict[str, Any]:
     return value
 
 
-def _https_url(url: str, owner: str) -> None:
-    parsed = urlparse(url)
-    if parsed.scheme != "https" or not parsed.netloc:
-        raise ConfigurationError(f"{owner}.url must be an absolute HTTPS URL")
-
-
-def load_runtime_lock(path: Path) -> RuntimeLock:
-    data = _load_toml(path)
-    if data.get("schema_version") != 1:
-        raise ConfigurationError("runtime.lock.toml schema_version must be 1")
-
-    version = data.get("runtime_version")
-    flavor = data.get("flavor")
-    aggregate_license = data.get("aggregate_license")
-    epoch = data.get("source_date_epoch")
-    filters = data.get("required_audio_filters")
-    if not isinstance(version, str) or not version:
-        raise ConfigurationError("runtime_version must be a non-empty string")
-    if not isinstance(flavor, str) or not flavor:
-        raise ConfigurationError("flavor must be a non-empty string")
-    if aggregate_license != "LGPL-3.0-or-later":
-        raise ConfigurationError("the release flavor must remain LGPL-3.0-or-later")
-    if not isinstance(epoch, int) or epoch < 315532800:
-        raise ConfigurationError("source_date_epoch must be an integer on or after 1980-01-01")
+def _texts(value: Any, owner: str) -> tuple[str, ...]:
     if (
-        not isinstance(filters, list)
-        or not filters
-        or not all(isinstance(item, str) and item for item in filters)
+        not isinstance(value, list)
+        or not value
+        or not all(isinstance(item, str) and item for item in value)
     ):
-        raise ConfigurationError("required_audio_filters must be a non-empty string array")
+        raise ConfigurationError(f"{owner} must be a non-empty string array")
+    return tuple(value)
+
+
+def load_contract(path: Path) -> RuntimeContract:
+    data = _load_toml(path)
+    if data.get("schema_version") != 2:
+        raise ConfigurationError("contracts/runtime.toml schema_version must be 2")
+    minimum_media_kit = data.get("minimum_media_kit")
+    minimum_media_kit_video = data.get("minimum_media_kit_video")
+    if not isinstance(minimum_media_kit, str) or not minimum_media_kit:
+        raise ConfigurationError("minimum_media_kit must be a non-empty string")
+    if not isinstance(minimum_media_kit_video, str) or not minimum_media_kit_video:
+        raise ConfigurationError("minimum_media_kit_video must be a non-empty string")
+    filters = _texts(data.get("required_audio_filters"), "required_audio_filters")
     if len(filters) != len(set(filters)):
         raise ConfigurationError("required_audio_filters contains duplicates")
 
-    source_tables = _table(data.get("source"), "source")
-    builder_tables = _table(data.get("builder"), "builder")
-    toolchains = _table(data.get("toolchain"), "toolchain")
-    if not all(
-        isinstance(value, (str, int)) and not isinstance(value, bool)
-        for value in toolchains.values()
-    ):
-        raise ConfigurationError("toolchain values must be strings or integers")
-    for required in (
-        "python",
-        "android_ndk",
-        "android_api",
-        "windows_container",
-        "meson",
-        "linux_image",
-        "linux_arm_image",
-        "apple_image",
-        "xcode_path",
-    ):
-        if required not in toolchains:
-            raise ConfigurationError(f"toolchain.{required} is required")
-    sources = {
-        name: SourceLock.from_table(name, _table(table, f"source.{name}"))
-        for name, table in source_tables.items()
+    artifact_tables = _table(data.get("artifact"), "artifact")
+    artifacts = {
+        name: ArtifactContract.from_table(name, _table(value, f"artifact.{name}"))
+        for name, value in artifact_tables.items()
     }
-    builders = {
-        name: BuilderLock.from_table(name, _table(table, f"builder.{name}"))
-        for name, table in builder_tables.items()
+    if set(artifacts) != {"windows-x86_64", "android", "macos", "ios"}:
+        raise ConfigurationError(
+            "artifact contract must define windows-x86_64, android, macos and ios"
+        )
+    for artifact in artifacts.values():
+        if artifact.platform not in _SUPPORTED_PLATFORMS:
+            raise ConfigurationError(f"artifact.{artifact.name}.platform is unsupported")
+        if artifact.package not in _SUPPORTED_PACKAGES:
+            raise ConfigurationError(f"artifact.{artifact.name}.package is unsupported")
+
+    linux_table = _table(data.get("linux"), "linux")
+    soname = linux_table.get("soname_major")
+    if soname != 2:
+        raise ConfigurationError("linux.soname_major must be 2")
+    profile_tables = _table(linux_table.get("profile"), "linux.profile")
+    profiles = {
+        name: LinuxProfile(
+            name=name,
+            runtime_packages=_texts(
+                _table(value, f"linux.profile.{name}").get("runtime_packages"),
+                f"linux.profile.{name}.runtime_packages",
+            ),
+        )
+        for name, value in profile_tables.items()
     }
-    for source in sources.values():
-        _https_url(source.url, f"source.{source.name}")
-        if not _FULL_REVISION.fullmatch(source.revision):
-            raise ConfigurationError(f"source.{source.name}.revision must be a full commit hash")
-        if not source.sha256:
-            raise ConfigurationError(f"source.{source.name}.sha256 is required")
-    for builder in builders.values():
-        _https_url(builder.url, f"builder.{builder.key}")
-        if not _FULL_REVISION.fullmatch(builder.revision):
-            raise ConfigurationError(f"builder.{builder.key}.revision must be a full commit hash")
-        if not builder.sha256:
-            raise ConfigurationError(f"builder.{builder.key}.sha256 is required")
-
-    for required in ("mpv", "ffmpeg", "libplacebo"):
-        if required not in sources:
-            raise ConfigurationError(f"source.{required} is required")
-    for required in ("android", "android_helper", "windows", "linux", "darwin"):
-        if required not in builders:
-            raise ConfigurationError(f"builder.{required} is required")
-
-    return RuntimeLock(
-        path=path,
-        schema_version=1,
-        runtime_version=version,
-        flavor=flavor,
-        aggregate_license=aggregate_license,
-        source_date_epoch=epoch,
-        required_audio_filters=tuple(filters),
-        toolchains=dict(toolchains),
-        sources=sources,
-        builders=builders,
+    linux = LinuxContract(
+        soname_major=soname,
+        loader_candidates=_texts(linux_table.get("loader_candidates"), "linux.loader_candidates"),
+        build_packages=_texts(linux_table.get("build_packages"), "linux.build_packages"),
+        profiles=profiles,
+    )
+    return RuntimeContract(
+        schema_version=2,
+        minimum_media_kit=minimum_media_kit,
+        minimum_media_kit_video=minimum_media_kit_video,
+        required_audio_filters=filters,
+        artifacts=artifacts,
+        linux=linux,
     )
 
 
-def load_targets(path: Path, lock: RuntimeLock) -> dict[str, Target]:
+def load_sources(path: Path) -> dict[str, SourceRule]:
     data = _load_toml(path)
     if data.get("schema_version") != 1:
-        raise ConfigurationError("targets.toml schema_version must be 1")
-    tables = _table(data.get("target"), "target")
-    targets = {
-        name: Target.from_table(name, _table(table, f"target.{name}"))
-        for name, table in tables.items()
+        raise ConfigurationError("sources/upstreams.toml schema_version must be 1")
+    tables = _table(data.get("source"), "source")
+    sources = {
+        name: SourceRule.from_table(name, _table(value, f"source.{name}"))
+        for name, value in tables.items()
     }
-    if not targets:
-        raise ConfigurationError("targets.toml must declare at least one target")
-    for target in targets.values():
-        if not _TARGET_NAME.fullmatch(target.name):
-            raise ConfigurationError(f"invalid target name: {target.name}")
-        if target.platform not in _SUPPORTED_PLATFORMS:
-            raise ConfigurationError(f"target.{target.name}.platform is unsupported")
-        if target.package not in _SUPPORTED_PACKAGES:
-            raise ConfigurationError(f"target.{target.name}.package is unsupported")
-        if target.builder not in lock.builders:
+    for source in sources.values():
+        if not _REPOSITORY.fullmatch(source.repository):
+            raise ConfigurationError(f"source.{source.name}.repository is invalid")
+        if source.release != "latest":
             raise ConfigurationError(
-                f"target.{target.name}.builder refers to missing builder.{target.builder}"
+                f"source.{source.name}.release must be latest; version pins belong in promotions"
             )
-        if not target.name.startswith(f"{target.platform}-"):
-            raise ConfigurationError(f"target.{target.name} must start with {target.platform}-")
-    covered = {target.platform for target in targets.values()}
-    missing = _SUPPORTED_PLATFORMS - covered
-    if missing:
-        raise ConfigurationError(f"targets.toml is missing platforms: {', '.join(sorted(missing))}")
-    return targets
+        for pattern in source.asset_patterns:
+            try:
+                re.compile(pattern)
+            except re.error as error:
+                raise ConfigurationError(
+                    f"source.{source.name}.asset_patterns contains invalid regex: {error}"
+                ) from error
+    return sources
 
 
 def load_repository(start: Path | None = None) -> RepositoryConfig:
     root = find_repository_root(start)
-    lock = load_runtime_lock(root / "runtime.lock.toml")
-    targets = load_targets(root / "targets.toml", lock)
-    version_file = (root / "VERSION").read_text(encoding="utf-8").strip()
-    if version_file != lock.runtime_version:
+    contract = load_contract(root / "contracts" / "runtime.toml")
+    sources = load_sources(root / "sources" / "upstreams.toml")
+    referenced = {source for artifact in contract.artifacts.values() for source in artifact.sources}
+    missing = referenced - set(sources)
+    if missing:
         raise ConfigurationError(
-            f"VERSION ({version_file}) and runtime.lock.toml ({lock.runtime_version}) differ"
+            f"artifact contract refers to missing sources: {', '.join(sorted(missing))}"
         )
-    return RepositoryConfig(root=root, lock=lock, targets=targets)
+    unused = set(sources) - referenced
+    if unused:
+        raise ConfigurationError(f"unreferenced source rules: {', '.join(sorted(unused))}")
+    return RepositoryConfig(root=root, contract=contract, sources=sources)

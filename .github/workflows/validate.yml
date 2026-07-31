@@ -1,0 +1,184 @@
+name: validate runtime candidates
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-runtime-candidates
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check -e .
+      - name: Discover and acquire
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          libmpv-runtime candidate discover --source windows_libmpv --source windows_angle --output work/candidates
+          libmpv-runtime candidate acquire --candidate work/candidates/windows_libmpv.json --output work/intake/windows_libmpv
+          libmpv-runtime candidate acquire --candidate work/candidates/windows_angle.json --output work/intake/windows_angle
+      - name: Normalize and validate structure
+        run: >-
+          libmpv-runtime normalize --artifact windows-x86_64
+          --intake work/intake/windows_libmpv/intake.json
+          --intake work/intake/windows_angle/intake.json
+          --output build/stage/windows-x86_64
+      - run: >-
+          libmpv-runtime validate artifact --artifact windows-x86_64
+          --stage build/stage/windows-x86_64
+          --evidence build/evidence/windows-x86_64.json
+      - name: Decode local and online PCM through every filter
+        shell: pwsh
+        env:
+          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
+          LIBMPV_RUNTIME_STAGE: ${{ github.workspace }}\build\stage\windows-x86_64
+          LIBMPV_RUNTIME_WORK: ${{ github.workspace }}\work\probe-windows
+          LIBMPV_RUNTIME_EVIDENCE: ${{ github.workspace }}\build\evidence\windows-x86_64.json
+        run: ./scripts/probe/windows.ps1
+      - run: libmpv-runtime package --artifact windows-x86_64 --stage build/stage/windows-x86_64 --output dist/windows
+      - name: Run the real Flutter MediaKit consumer
+        shell: pwsh
+        env:
+          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
+          LIBMPV_RUNTIME_ARTIFACT: ${{ github.workspace }}\dist\windows\libmpv-runtime-windows-x86_64.zip
+          LIBMPV_RUNTIME_EVIDENCE: ${{ github.workspace }}\build\evidence\windows-x86_64.json
+        run: ./scripts/consumer/windows.ps1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: validation-windows
+          path: |
+            dist/windows/*
+            build/evidence/windows-x86_64.json
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check -e .
+      - name: Discover, acquire, normalize and inspect every ABI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          libmpv-runtime candidate discover --source android_libmpv --source android_helper --output work/candidates
+          libmpv-runtime candidate acquire --candidate work/candidates/android_libmpv.json --output work/intake/android_libmpv
+          libmpv-runtime candidate acquire --candidate work/candidates/android_helper.json --output work/intake/android_helper
+          libmpv-runtime normalize --artifact android \
+            --intake work/intake/android_libmpv/intake.json \
+            --intake work/intake/android_helper/intake.json \
+            --output build/stage/android
+          libmpv-runtime validate artifact --artifact android --stage build/stage/android \
+            --evidence build/evidence/android.json
+      - run: libmpv-runtime package --artifact android --stage build/stage/android --output dist/android
+      - name: Probe libmpv and the real Flutter consumer in an emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        env:
+          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
+          LIBMPV_RUNTIME_STAGE: ${{ github.workspace }}/build/stage/android
+          LIBMPV_RUNTIME_WORK: ${{ github.workspace }}/work/probe-android
+          LIBMPV_RUNTIME_EVIDENCE: ${{ github.workspace }}/build/evidence/android.json
+          LIBMPV_RUNTIME_ARTIFACT: ${{ github.workspace }}/dist/android/libmpv-runtime-android.zip
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: bash scripts/probe/android-emulator.sh && bash scripts/consumer/android.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: validation-android
+          path: |
+            dist/android/*
+            build/evidence/android.json
+          if-no-files-found: error
+
+  apple:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check -e .
+      - name: Discover, acquire, normalize and inspect XCFrameworks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          libmpv-runtime candidate discover --source darwin_macos --source darwin_ios --output work/candidates
+          for source in darwin_macos darwin_ios; do
+            libmpv-runtime candidate acquire --candidate "work/candidates/$source.json" --output "work/intake/$source"
+          done
+          libmpv-runtime normalize --artifact macos --intake work/intake/darwin_macos/intake.json --output build/stage/macos
+          libmpv-runtime normalize --artifact ios --intake work/intake/darwin_ios/intake.json --output build/stage/ios
+          libmpv-runtime validate artifact --artifact macos --stage build/stage/macos --evidence build/evidence/macos.json
+          libmpv-runtime validate artifact --artifact ios --stage build/stage/ios --evidence build/evidence/ios.json
+      - name: Decode local and online PCM on macOS
+        env:
+          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
+          LIBMPV_RUNTIME_STAGE: ${{ github.workspace }}/build/stage/macos
+          LIBMPV_RUNTIME_WORK: ${{ github.workspace }}/work/probe-macos
+          LIBMPV_RUNTIME_EVIDENCE: ${{ github.workspace }}/build/evidence/macos.json
+        run: bash scripts/probe/darwin.sh
+      - name: Record iOS source-equivalent DSP evidence
+        run: >-
+          libmpv-runtime evidence behavior --path build/evidence/ios.json
+          --filters loudnorm dynaudnorm acompressor alimiter volume aresample ebur128 astats
+          --measured-gain-db -6.0206 --mode source-equivalent --reference-target macos
+      - run: |
+          libmpv-runtime package --artifact macos --stage build/stage/macos --output dist/apple
+          libmpv-runtime package --artifact ios --stage build/stage/ios --output dist/apple
+      - name: Run macOS playback and build an iOS simulator consumer
+        env:
+          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
+          LIBMPV_RUNTIME_MACOS_ARTIFACTS: ${{ join(fromJSON('["dist/apple/libmpv-runtime-macos.tar.gz","dist/apple/libmpv-runtime-macos-Mpv.zip","dist/apple/libmpv-runtime-macos-Avfilter.zip","dist/apple/libmpv-runtime-macos-Avcodec.zip"]'), ' ') }}
+          LIBMPV_RUNTIME_IOS_ARTIFACTS: ${{ join(fromJSON('["dist/apple/libmpv-runtime-ios.tar.gz","dist/apple/libmpv-runtime-ios-Mpv.zip","dist/apple/libmpv-runtime-ios-Avfilter.zip","dist/apple/libmpv-runtime-ios-Avcodec.zip"]'), ' ') }}
+          LIBMPV_RUNTIME_MACOS_EVIDENCE: ${{ github.workspace }}/build/evidence/macos.json
+          LIBMPV_RUNTIME_IOS_EVIDENCE: ${{ github.workspace }}/build/evidence/ios.json
+        run: bash scripts/consumer/darwin.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: validation-apple
+          path: |
+            dist/apple/*
+            build/evidence/macos.json
+            build/evidence/ios.json
+          if-no-files-found: error
+
+  linux-system:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libmpv2 libmpv-dev libepoxy-dev
+          python -m pip install --disable-pip-version-check -e .
+          libmpv-runtime validate linux --profile ubuntu-24.04 --output linux-system.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: validation-linux-system
+          path: linux-system.json
+          if-no-files-found: error

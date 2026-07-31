@@ -10,7 +10,30 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <mpv/client.h>
+/* Minimal stable client ABI declarations keep the probe independent of a
+ * particular upstream header package. Every function is still resolved from
+ * the candidate runtime at execution time. */
+#include <stdint.h>
+typedef struct mpv_handle mpv_handle;
+typedef struct mpv_event {
+    int event_id;
+    int error;
+    uint64_t reply_userdata;
+    void *data;
+} mpv_event;
+typedef struct mpv_event_end_file {
+    int reason;
+    int error;
+    int64_t playlist_entry_id;
+    int64_t playlist_insert_id;
+    int playlist_insert_num_entries;
+} mpv_event_end_file;
+enum {
+    MPV_EVENT_NONE = 0,
+    MPV_EVENT_SHUTDOWN = 1,
+    MPV_EVENT_END_FILE = 7,
+    MPV_EVENT_FILE_LOADED = 8
+};
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -51,6 +74,7 @@ typedef unsigned long (*client_api_version_fn)(void);
 typedef mpv_handle *(*create_fn)(void);
 typedef int (*initialize_fn)(mpv_handle *);
 typedef int (*set_option_string_fn)(mpv_handle *, const char *, const char *);
+typedef int (*set_property_string_fn)(mpv_handle *, const char *, const char *);
 typedef int (*command_fn)(mpv_handle *, const char *const *);
 typedef mpv_event *(*wait_event_fn)(mpv_handle *, double);
 typedef char *(*get_property_string_fn)(mpv_handle *, const char *);
@@ -63,6 +87,7 @@ struct api {
     create_fn create;
     initialize_fn initialize;
     set_option_string_fn set_option_string;
+    set_property_string_fn set_property_string;
     command_fn command;
     wait_event_fn wait_event;
     get_property_string_fn get_property_string;
@@ -84,6 +109,7 @@ static int bind_api(library_handle library, struct api *api) {
     LOAD(create, create_fn, "mpv_create");
     LOAD(initialize, initialize_fn, "mpv_initialize");
     LOAD(set_option_string, set_option_string_fn, "mpv_set_option_string");
+    LOAD(set_property_string, set_property_string_fn, "mpv_set_property_string");
     LOAD(command, command_fn, "mpv_command");
     LOAD(wait_event, wait_event_fn, "mpv_wait_event");
     LOAD(get_property_string, get_property_string_fn, "mpv_get_property_string");
@@ -112,14 +138,19 @@ static void print_property(struct api *api, mpv_handle *handle, const char *name
 }
 
 int main(int argc, char **argv) {
-    if (argc != 5) {
-        fprintf(stderr, "usage: %s LIBMPV INPUT.wav OUTPUT.wav LAVFI_FILTER\n", argv[0]);
+    if (argc != 5 && argc != 6) {
+        fprintf(stderr, "usage: %s LIBMPV INPUT OUTPUT.wav LAVFI_FILTER [after-load]\n", argv[0]);
         return 64;
     }
     const char *library_path = argv[1];
     const char *input_path = argv[2];
     const char *output_path = argv[3];
     const char *filter = argv[4];
+    int after_load = argc == 6 && strcmp(argv[5], "after-load") == 0;
+    if (argc == 6 && !after_load) {
+        fprintf(stderr, "unsupported filter timing: %s\n", argv[5]);
+        return 64;
+    }
 
     library_handle library = open_library(library_path);
     if (!library) {
@@ -162,7 +193,8 @@ int main(int argc, char **argv) {
         set_option(&api, handle, "audio-format", "s16") &&
         set_option(&api, handle, "audio-channels", "stereo") &&
         set_option(&api, handle, "audio-samplerate", "48000") &&
-        set_option(&api, handle, "af", audio_filter);
+        (!after_load || set_option(&api, handle, "pause", "yes")) &&
+        (after_load || set_option(&api, handle, "af", audio_filter));
     if (!options_ok) {
         api.terminate_destroy(handle);
         close_library(library);
@@ -189,15 +221,30 @@ int main(int argc, char **argv) {
     }
 
     int exit_code = 72;
+    int filter_applied = !after_load;
     for (;;) {
         mpv_event *event = api.wait_event(handle, 30.0);
         if (!event) {
             fprintf(stderr, "mpv_wait_event returned null\n");
             break;
         }
-        if (event->event_id == MPV_EVENT_END_FILE) {
+        if (event->event_id == MPV_EVENT_FILE_LOADED && after_load && !filter_applied) {
+            result = api.set_property_string(handle, "af", audio_filter);
+            if (result < 0) {
+                fprintf(stderr, "cannot set af after load: %s\n", api.error_string(result));
+                break;
+            }
+            result = api.set_property_string(handle, "pause", "no");
+            if (result < 0) {
+                fprintf(stderr, "cannot resume after filter insertion: %s\n", api.error_string(result));
+                break;
+            }
+            filter_applied = 1;
+        } else if (event->event_id == MPV_EVENT_END_FILE) {
             mpv_event_end_file *end = (mpv_event_end_file *)event->data;
-            if (end && end->error < 0) {
+            if (!filter_applied) {
+                fprintf(stderr, "playback ended before filter insertion\n");
+            } else if (end && end->error < 0) {
                 fprintf(stderr, "playback failed: %s\n", api.error_string(end->error));
             } else {
                 exit_code = 0;

@@ -1,12 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(libmpv_runtime_probe LANGUAGES C)
 
-if(NOT DEFINED MPV_INCLUDE_DIR)
-  message(FATAL_ERROR "MPV_INCLUDE_DIR must point to the directory containing mpv/client.h")
-endif()
-
 add_executable(mpv_dsp_probe mpv_dsp_probe.c)
-target_include_directories(mpv_dsp_probe PRIVATE "${MPV_INCLUDE_DIR}")
 set_target_properties(mpv_dsp_probe PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES)
 
 if(UNIX AND NOT APPLE AND NOT ANDROID)

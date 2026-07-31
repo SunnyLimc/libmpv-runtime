@@ -1,70 +1,80 @@
 # Architecture
 
-## One runtime authority
+## Direct intake, not a universal builder
 
-Applications continue to use `media_kit` and its single `libmpv` instance for
-playback. This repository replaces only the native binary package. It does not
-add a second decoder, player, or volume owner.
-
-User volume, mute/startup gating, and normalization gain remain separate
-application concepts. DSP filters supplied here are capabilities; the runtime
-does not decide product policy.
-
-## Build pipeline
+Platform builders already encode SDK, ABI, linker, codec, and packaging work.
+Reimplementing them here would create a second large dependency graph without
+improving the product contract. This repository therefore owns selection,
+normalization, validation, and promotion; upstream projects continue to own
+compilation.
 
 ```text
-runtime.lock.toml
-        |
-        v
-verified builder archive ---> exact patch series ---> native toolchain
-        |                                              |
-        +---------------- manifest inputs <------------+
-                                                       |
-                                                       v
-                                                normalized stage
-                                                       |
-                         +-----------------------------+------------------+
-                         |                             |                  |
-                         v                             v                  v
-                 binary/config checks          decoded PCM probe     link/load probe
-                         |                             |                  |
-                         +-----------------------------+------------------+
-                                                       |
-                                                       v
-                                      licenses + source lock + SPDX SBOM
-                                                       |
-                                                       v
-                                        deterministic release archive
+maintained release channel
+          |
+          v
+candidate.json (release id, tag, commit, asset digest)
+          |
+          v
+intake.json + unchanged downloaded bytes
+          |
+          v
+canonical platform stage
+          |
+          +---- binary/ABI/dependency/filter inspection
+          +---- native local + HTTP decoded-PCM probe
+          +---- real Flutter/MediaKit consumer
+          |
+          v
+immutable runtime-YYYYMMDD.N promotion
+          |
+          v
+exact-name MediaKit drop-in packages
 ```
 
-Python owns invariant enforcement and metadata. Platform-native build systems
-remain responsible for compiling:
+There is no source version lock, patch series, builder pin, compiler image, or
+fallback source build in the default path. If an upstream later stops producing
+a viable target, validation fails and the previous promotion remains current.
+Only evidence of a persistent gap justifies adding a narrowly scoped builder.
 
-- Android: NDK/Gradle on Linux.
-- Windows: CMake/Ninja/MinGW cross-build in a pinned Linux container.
-- Linux: native build on each release architecture.
-- Apple: Nix plus the selected Xcode toolchain.
+## Authorities
 
-## Why upstream builders are inputs
+- `contracts/runtime.toml` defines supported platforms, architectures, loader
+  names, Linux SONAME, and required audio filters.
+- `sources/upstreams.toml` defines maintained repositories, `latest` release
+  channels, and exact asset-name patterns. It must not contain dependency
+  versions.
+- `candidate.json` freezes what discovery observed, but is not trusted yet.
+- `intake.json` binds the actual downloaded bytes to independently calculated
+  SHA-256 digests.
+- evidence files are append-only gate state: structure, behavior, then consumer.
+- `promotion.json` is the only accepted runtime identity. Consumers never use
+  an upstream `latest` URL.
 
-Each platform has non-trivial SDK and packaging behavior. Reusing a locked
-builder commit keeps those details reviewable while this repository owns the
-cross-platform contract. The builder archive is SHA-256 verified before
-extraction, then patched locally. Core mpv, FFmpeg, libass, libplacebo, and
-dav1d revisions are checked against the lock after source acquisition; a
-builder dependency update cannot silently promote a release.
+## Platform normalization
 
-## Verification levels
+Windows keeps `libmpv-2.dll`, its import library and headers, and the ANGLE DLL
+set expected by MediaKit. Android extracts the native dependency closure from
+the universal upstream APK, excludes its app-only `libplayer.so`, and adds only
+`libmediakitandroidhelper.so` from MediaKit's package. Apple preserves all
+XCFrameworks from the `video-encodersgpl` bundle and also emits one zip per
+framework for SwiftPM.
 
-1. **Policy:** GPL/non-free flags must be absent and the required filter list
-   must be declared.
-2. **Structure:** load names, architectures, headers, notices, and dependent
-   libraries must match the target contract.
-3. **Capability:** FFmpeg configuration or exported filter tables must contain
-   all required filters.
-4. **Behavior:** a deterministic WAV is decoded through `libmpv`; an applied
-   gain must change measured PCM by the expected amount without clipping.
-5. **Consumer:** native C plus platform link/package fixtures verify the
-   layout and dynamic-loading contract used by `media_kit`.
+Linux is intentionally different. `media_kit_video` links with `pkg-config mpv`
+and records the linked SONAME; installing another private libmpv after building
+does not make one Flutter binary portable between SONAME 1 and 2. The supported
+baseline is therefore distribution `libmpv.so.2`, with `libmpv-dev` and
+`libepoxy-dev` in the application build environment. There is no hidden runtime
+fallback.
 
-Only artifacts passing all applicable levels are eligible for release.
+## Validation semantics
+
+Structure validation checks real binary facts: PE/ELF architecture, Android
+load alignment for 16 KiB devices, complete ABI sets, required loader names,
+Apple slices, and filter strings in Avfilter. Behavior validation dynamically
+loads libmpv and observes decoded audio. Consumer validation uses the generated
+package in a Flutter app and exercises online playback after applying `af`.
+
+iOS currently uses native macOS DSP evidence from the same upstream release
+plus an iOS-simulator compile/link/plugin consumer gate. It is labeled
+`source-equivalent`, never native iOS behavior. Promotion metadata keeps that
+distinction visible.
