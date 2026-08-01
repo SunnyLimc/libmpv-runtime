@@ -62,7 +62,10 @@ try {
         if ($logs -match 'LIBMPV_RUNTIME_CONSUMER_OK') { $passed = $true; break }
         Start-Sleep -Milliseconds 500
     }
-    if (-not $passed) { throw 'Android MediaKit consumer did not report success' }
+    if (-not $passed) {
+        $tail = ($logs | Select-Object -Last 300) -join "`n"
+        throw "Android MediaKit consumer did not report success.`n$tail"
+    }
     libmpv-runtime consumer report --plan $plan --target android `
         --profile $env:LIBMPV_RUNTIME_PROFILE --app $fixture --artifact $artifact `
         --output $report `

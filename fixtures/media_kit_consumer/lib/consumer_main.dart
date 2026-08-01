@@ -19,12 +19,20 @@ Future<void> main() async {
     await verifyNativeRuntime(player);
     // `print` is intentionally used so Android forwards the gate marker to logcat.
     print('LIBMPV_RUNTIME_CONSUMER_OK');
+    if (Platform.isAndroid) {
+      // Android forwards Flutter stdout asynchronously. Give logcat time to
+      // persist the marker before terminating the process.
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
     await player.dispose();
     exit(0);
   } catch (error, stackTrace) {
     print('LIBMPV_RUNTIME_CONSUMER_ERROR: $error');
     stderr.writeln(error);
     stderr.writeln(stackTrace);
+    if (Platform.isAndroid) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
     await player.dispose();
     exit(1);
   }

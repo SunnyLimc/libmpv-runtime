@@ -60,7 +60,10 @@ for _ in $(seq 1 120); do
   fi
   sleep 0.5
 done
-[[ "$passed" == true ]]
+if [[ "$passed" != true ]]; then
+  adb logcat -d -v brief | tail -n 300 >&2
+  exit 1
+fi
 libmpv-runtime consumer report --plan "$LIBMPV_RUNTIME_PLAN" --target android \
   --profile "$LIBMPV_RUNTIME_PROFILE" --app "$fixture" \
   --artifact "$LIBMPV_RUNTIME_ARTIFACT" --output "$LIBMPV_RUNTIME_REPORT" \
