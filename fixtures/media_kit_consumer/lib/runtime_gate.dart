@@ -20,16 +20,19 @@ Future<void> verifyNativeRuntime(Player player) async {
     throw StateError('libmpv did not retain the audio filter: $appliedFilter');
   }
   print('LIBMPV_RUNTIME_CONSUMER_STAGE: filter');
-  final controller = VideoController(player);
-  if (controller.player != player) {
-    throw StateError('VideoController did not retain the MediaKit player');
-  }
 
   final deadline = DateTime.now().add(const Duration(seconds: 20));
   while (DateTime.now().isBefore(deadline)) {
     final seconds = double.tryParse(await platform.getProperty('time-pos'));
     if (seconds != null && seconds >= 0.25) {
       print('LIBMPV_RUNTIME_CONSUMER_STAGE: clock');
+      // Attach the video plugin only after all NativePlayer property reads.
+      // MediaKit waits for an attached VideoController to initialize before
+      // servicing properties, which cannot complete for this audio-only WAV.
+      final controller = VideoController(player);
+      if (controller.player != player) {
+        throw StateError('VideoController did not retain the MediaKit player');
+      }
       return;
     }
     await Future<void>.delayed(const Duration(milliseconds: 100));

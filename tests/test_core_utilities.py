@@ -236,6 +236,7 @@ def test_consumer_gate_checks_native_playback_progress_instead_of_eof() -> None:
     assert "getProperty('af')" in gate
     assert "getProperty('time-pos')" in gate
     assert "stream.completed" not in gate
+    assert gate.index("getProperty('time-pos')") < gate.index("VideoController(player)")
     assert "Platform.isAndroid" in main
 
 
