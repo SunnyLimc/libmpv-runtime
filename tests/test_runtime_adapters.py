@@ -74,6 +74,7 @@ def test_probe_adapter_owns_workspace_and_verifies_decoded_pcm(
             shutil.copy2(source, output / f"{item.name}.wav")
         _scale(source, output / "volume-http.wav", 0.5)
 
+    monkeypatch.setattr(probe_module.platform, "system", lambda: "Windows")
     monkeypatch.setattr(probe_module, "run", fake_run)
     try:
         result = run_probe(
@@ -120,6 +121,7 @@ def test_consumer_adapter_checks_exact_profile_and_collects_report(
     report = config.root / "work" / "pytest-consumer.json"
     artifact.parent.mkdir(parents=True, exist_ok=True)
     artifact.write_bytes(b"fixture")
+    monkeypatch.setattr(consumer_module.platform, "system", lambda: "Windows")
     monkeypatch.setattr(consumer_module, "_flutter_version", lambda _: "3.44.7")
 
     def fake_run(_: list[str], *, cwd: Path, env: dict[str, str]) -> None:
