@@ -12,7 +12,7 @@ import pytest
 from libmpv_runtime.errors import IntegrityError, VerificationError
 from libmpv_runtime.evidence import seal_evidence, seal_linux_evidence
 from libmpv_runtime.files import read_json, sha256_file, sha256_json, write_json
-from libmpv_runtime.generate import generate_packages
+from libmpv_runtime.generate import create_candidate_manifest, generate_packages
 from libmpv_runtime.models import RepositoryConfig
 from libmpv_runtime.plan import load_plan
 from libmpv_runtime.promotion import assemble, load_promotion
@@ -378,3 +378,22 @@ def test_promotion_is_plan_bound_and_generates_real_dropin_packages(
     ).read_text(encoding="utf-8")
     assert "swift-tools-version: 5.9" in swift
     assert '"Fftools-ffi"' not in swift
+    assert ".binaryTarget" in swift and 'url: "https://' in swift
+
+    candidate = create_candidate_manifest(
+        "runtime-20000101.1",
+        {"macos": artifacts["macos"]},
+        "http://127.0.0.1:8000",
+        tmp_path / "candidate.json",
+    )
+    local_packages = generate_packages(
+        config,
+        candidate,
+        tmp_path / "local-packages",
+        ("macos",),
+    )
+    local_package = local_packages / "media_kit_libs_macos_video/macos/media_kit_libs_macos_video"
+    local_swift = (local_package / "Package.swift").read_text(encoding="utf-8")
+    assert ".binaryTarget" in local_swift and 'path: "Artifacts/' in local_swift
+    assert 'url: "http://' not in local_swift
+    assert (local_package / "Artifacts" / macos_component.name).read_bytes() == original_component

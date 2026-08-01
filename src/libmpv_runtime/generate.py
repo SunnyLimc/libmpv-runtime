@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +58,20 @@ def _field(record: dict[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value:
         raise IntegrityError(f"promotion artifact has no {key}")
     return value
+
+
+def _local_artifact(record: dict[str, Any]) -> Path | None:
+    value = record.get("localPath")
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise IntegrityError("promotion artifact has an invalid localPath")
+    path = Path(value)
+    if not path.is_file():
+        raise IntegrityError(f"local promotion artifact is missing: {path}")
+    if sha256_file(path) != _field(record, "sha256"):
+        raise IntegrityError(f"local promotion artifact changed: {path}")
+    return path
 
 
 def _pubspec(
@@ -207,12 +222,25 @@ def _generate_apple(
     if not component_records:
         raise IntegrityError(f"promotion has no SwiftPM components for {platform}")
     names = sorted(item for item in component_records if item != "Fftools-ffi")
-    declarations = "\n".join(
-        f'    "{item}": ("{_field(component_records[item], "url")}", '
-        f'"{_field(component_records[item], "sha256")}"),'
-        for item in names
-    )
     targets = "\n".join(f'    "{item}",' for item in names)
+    binary_targets: list[str] = []
+    artifacts_directory = native / name / "Artifacts"
+    for item in names:
+        record = component_records[item]
+        local = _local_artifact(record)
+        if local is None:
+            binary_targets.append(
+                f'    .binaryTarget(name: "{item}", '
+                f'url: "{_field(record, "url")}", '
+                f'checksum: "{_field(record, "sha256")}"),'
+            )
+            continue
+        artifacts_directory.mkdir(parents=True, exist_ok=True)
+        destination = artifacts_directory / _field(record, "name")
+        shutil.copy2(local, destination)
+        binary_targets.append(
+            f'    .binaryTarget(name: "{item}", path: "Artifacts/{destination.name}"),'
+        )
     swift_platform = f'.iOS("{minimum}")' if platform == "ios" else f'.macOS("{minimum}")'
     _write(
         native / name / "Package.swift",
@@ -220,7 +248,7 @@ def _generate_apple(
             "apple/Package.swift.tmpl",
             {
                 "SWIFT_TOOLS": toolchain.swift_tools,
-                "DECLARATIONS": declarations,
+                "BINARY_TARGETS": "\n".join(binary_targets),
                 "TARGETS": targets,
                 "NAME": name,
                 "SWIFT_PLATFORM": swift_platform,
@@ -270,6 +298,7 @@ def create_candidate_manifest(
                     "role": role,
                     "name": path.name,
                     "url": f"{base_url.rstrip('/')}/{path.name}",
+                    "localPath": str(path.resolve()),
                     "sha256": sha256_file(path),
                     "size": path.stat().st_size,
                 }
