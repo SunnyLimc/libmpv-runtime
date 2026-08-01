@@ -15,7 +15,7 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3.12",
 ]
-dependencies = ["jsonschema==4.25.1"]
+dependencies = ["jsonschema==4.26.0"]
 
 [project.optional-dependencies]
 dev = [
