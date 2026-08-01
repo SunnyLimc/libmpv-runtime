@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0-alpha.1
+
+- Replaced per-job discovery with one checkout-bound immutable validation plan.
+- Split raw structure, behavior, and consumer observations from write-once
+  sealed evidence; both minimum and current MediaKit profiles are mandatory.
+- Added a hashed cross-platform validation fan-in and plan-bound promotion.
+- Added typed executable JSON Schemas, centrally versioned toolchains, owned
+  workspaces, template-backed package sources, and an 80% local coverage gate.
+- Expanded Linux validation to Debian 12, Debian 13, Ubuntu 24.04, Fedora, and
+  Arch with native decoded-PCM probes.
+- Hardened workflows with read-only checkout credentials, pinned setup actions,
+  protected release promotion, attestations, and draft-first publication.
+
 ## 0.2.0-alpha.1
 
 - Replaced the source-builder architecture with maintained upstream binary

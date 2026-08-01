@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SunnyLimc/libmpv-runtime/contracts/validation-plan.schema.json",
+  "title": "libmpv-runtime immutable validation plan",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "repositoryRevision",
+    "createdAt",
+    "contractSha256",
+    "sourcesSha256",
+    "candidates",
+    "artifacts",
+    "toolchain",
+    "consumers"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "repositoryRevision": { "$ref": "#/$defs/commit" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "contractSha256": { "$ref": "#/$defs/sha256" },
+    "sourcesSha256": { "$ref": "#/$defs/sha256" },
+    "candidates": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/candidate" }
+    },
+    "artifacts": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": { "type": "string", "minLength": 1 },
+        "uniqueItems": true
+      }
+    },
+    "toolchain": {
+      "type": "object",
+      "required": [
+        "python",
+        "flutter",
+        "dartSdk",
+        "androidGradlePlugin",
+        "androidCompileSdk",
+        "androidMinSdk",
+        "androidEmulatorApi",
+        "cmakeMinimum",
+        "swiftTools",
+        "iosDeploymentTarget",
+        "macosDeploymentTarget"
+      ],
+      "properties": {
+        "python": { "type": "string", "minLength": 1 },
+        "flutter": { "type": "string", "minLength": 1 },
+        "dartSdk": { "type": "string", "minLength": 1 },
+        "androidGradlePlugin": { "type": "string", "minLength": 1 },
+        "androidCompileSdk": { "type": "integer", "minimum": 1 },
+        "androidMinSdk": { "type": "integer", "minimum": 1 },
+        "androidEmulatorApi": { "type": "integer", "minimum": 1 },
+        "cmakeMinimum": { "type": "string", "minLength": 1 },
+        "swiftTools": { "type": "string", "minLength": 1 },
+        "iosDeploymentTarget": { "type": "string", "minLength": 1 },
+        "macosDeploymentTarget": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "consumers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["mediaKit", "mediaKitVideo"],
+        "properties": {
+          "mediaKit": { "type": "string", "minLength": 1 },
+          "mediaKitVideo": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "asset": {
+      "type": "object",
+      "required": ["name", "url", "sha256", "size"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "source",
+        "repository",
+        "releaseTag",
+        "releaseId",
+        "releaseUrl",
+        "targetCommitish",
+        "commitSha",
+        "publishedAt",
+        "discoveredAt",
+        "assets"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 2 },
+        "source": { "type": "string", "minLength": 1 },
+        "repository": { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+        "releaseTag": { "type": "string", "minLength": 1 },
+        "releaseId": { "type": "integer", "minimum": 1 },
+        "releaseUrl": { "type": "string", "format": "uri" },
+        "targetCommitish": { "type": "string", "minLength": 1 },
+        "commitSha": { "$ref": "#/$defs/commit" },
+        "publishedAt": { "type": "string", "format": "date-time" },
+        "discoveredAt": { "type": "string", "format": "date-time" },
+        "assets": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/asset" }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

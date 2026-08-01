@@ -1,0 +1,56 @@
+cmake_minimum_required(VERSION @@CMAKE_MINIMUM@@)
+set(PROJECT_NAME "media_kit_libs_windows_video")
+project(${PROJECT_NAME} LANGUAGES CXX)
+
+option(MEDIA_KIT_LIBS_AVAILABLE "package:media_kit libraries are available." ON)
+add_compile_definitions(_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+
+set(RUNTIME_URL "@@URL@@")
+set(RUNTIME_SHA256 "@@SHA256@@")
+if(DEFINED ENV{LIBMPV_RUNTIME_WINDOWS_URL})
+  set(RUNTIME_URL "$ENV{LIBMPV_RUNTIME_WINDOWS_URL}")
+endif()
+if(DEFINED ENV{LIBMPV_RUNTIME_WINDOWS_SHA256})
+  set(RUNTIME_SHA256 "$ENV{LIBMPV_RUNTIME_WINDOWS_SHA256}")
+endif()
+set(RUNTIME_ARCHIVE "${CMAKE_BINARY_DIR}/libmpv-runtime-${RUNTIME_SHA256}.zip")
+set(RUNTIME_ROOT "${CMAKE_BINARY_DIR}/libmpv")
+if(EXISTS "${RUNTIME_ARCHIVE}")
+  file(SHA256 "${RUNTIME_ARCHIVE}" OBSERVED_RUNTIME_SHA256)
+  if(NOT OBSERVED_RUNTIME_SHA256 STREQUAL RUNTIME_SHA256)
+    file(REMOVE "${RUNTIME_ARCHIVE}")
+  endif()
+endif()
+if(NOT EXISTS "${RUNTIME_ARCHIVE}")
+  file(DOWNLOAD "${RUNTIME_URL}" "${RUNTIME_ARCHIVE}"
+       EXPECTED_HASH "SHA256=${RUNTIME_SHA256}" TLS_VERIFY ON SHOW_PROGRESS)
+endif()
+if(NOT EXISTS "${RUNTIME_ROOT}/libmpv-2.dll")
+  file(REMOVE_RECURSE "${RUNTIME_ROOT}")
+  file(MAKE_DIRECTORY "${RUNTIME_ROOT}")
+  file(ARCHIVE_EXTRACT INPUT "${RUNTIME_ARCHIVE}" DESTINATION "${RUNTIME_ROOT}")
+endif()
+if(NOT EXISTS "${CMAKE_BINARY_DIR}/ANGLE/include/EGL/egl.h")
+  file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/ANGLE")
+  file(COPY "${RUNTIME_ROOT}/ANGLE/" DESTINATION "${CMAKE_BINARY_DIR}/ANGLE")
+endif()
+
+set(PLUGIN_NAME "media_kit_libs_windows_video_plugin")
+add_library(${PLUGIN_NAME} SHARED
+  "include/media_kit_libs_windows_video/media_kit_libs_windows_video_plugin_c_api.h"
+  "media_kit_libs_windows_video_plugin_c_api.cpp")
+apply_standard_settings(${PLUGIN_NAME})
+set_target_properties(${PLUGIN_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
+target_include_directories(${PLUGIN_NAME} INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
+
+set(media_kit_libs_windows_video_bundled_libraries
+  "${RUNTIME_ROOT}/libmpv-2.dll"
+  "${RUNTIME_ROOT}/ANGLE/d3dcompiler_47.dll"
+  "${RUNTIME_ROOT}/ANGLE/libEGL.dll"
+  "${RUNTIME_ROOT}/ANGLE/libGLESv2.dll"
+  "${RUNTIME_ROOT}/ANGLE/vk_swiftshader.dll"
+  "${RUNTIME_ROOT}/ANGLE/vulkan-1.dll"
+  "${RUNTIME_ROOT}/ANGLE/zlib.dll"
+  PARENT_SCOPE)

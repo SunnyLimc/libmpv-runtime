@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       validation_run_id:
-        description: Successful validate-runtime-candidates run ID
+        description: Successful validate-runtime-plan run ID
         required: true
         type: string
       promotion_id:
@@ -14,59 +14,82 @@ on:
 
 permissions:
   actions: read
+  attestations: write
   contents: write
+  id-token: write
+
+concurrency:
+  group: promote-validated-runtime
+  cancel-in-progress: false
 
 jobs:
   promote:
+    environment: release
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: "3.12"
-      - run: python -m pip install --disable-pip-version-check -e .
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.0"
+          enable-cache: true
+      - run: uv sync --locked --extra dev
       - name: Verify validation run identity
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.validation_run_id }}
         run: |
           test "$(gh run view "$RUN_ID" --json conclusion --jq .conclusion)" = success
-          test "$(gh run view "$RUN_ID" --json workflowName --jq .workflowName)" = 'validate runtime candidates'
+          test "$(gh run view "$RUN_ID" --json workflowName --jq .workflowName)" = 'validate runtime plan'
           test "$(gh run view "$RUN_ID" --json headSha --jq .headSha)" = "$GITHUB_SHA"
-      - name: Download one complete validation run
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: validated-runtime
+          path: validated-runtime
+          run-id: ${{ inputs.validation_run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify and assemble immutable promotion
+        env:
+          PROMOTION_ID: ${{ inputs.promotion_id }}
+        run: |
+          uv run libmpv-runtime validation verify --path validated-runtime
+          artifacts=()
+          for path in validated-runtime/libmpv-runtime-windows-x86_64.zip; do artifacts+=(--artifact "windows-x86_64=$path"); done
+          for path in validated-runtime/libmpv-runtime-android.zip; do artifacts+=(--artifact "android=$path"); done
+          for path in validated-runtime/libmpv-runtime-macos*; do artifacts+=(--artifact "macos=$path"); done
+          for path in validated-runtime/libmpv-runtime-ios*; do artifacts+=(--artifact "ios=$path"); done
+          linux=()
+          for path in validated-runtime/linux-system-*.json; do linux+=(--linux-evidence "$path"); done
+          uv run libmpv-runtime promotion assemble --id "$PROMOTION_ID" \
+            --plan validated-runtime/validation-plan.json \
+            "${artifacts[@]}" \
+            --evidence windows-x86_64=validated-runtime/windows-x86_64.json \
+            --evidence android=validated-runtime/android.json \
+            --evidence macos=validated-runtime/macos.json \
+            --evidence ios=validated-runtime/ios.json \
+            "${linux[@]}" --output release
+          uv run libmpv-runtime packages generate --promotion release/promotion.json --output packages
+      - name: Prepare release assets
+        run: |
+          mkdir release-assets
+          find release -maxdepth 1 -type f -exec cp {} release-assets/ \;
+          find packages -mindepth 1 -maxdepth 1 -type d -print0 | while IFS= read -r -d '' package; do
+            (cd packages && zip -Xqr "../release-assets/$(basename "$package").zip" "$(basename "$package")")
+          done
+      - name: Attest all promoted bytes
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: release-assets/*
+      - name: Publish through a draft release
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ inputs.validation_run_id }}
-        run: gh run download "$RUN_ID" --dir validated
-      - name: Assemble immutable promotion
+          PROMOTION_ID: ${{ inputs.promotion_id }}
         run: |
-          mapfile -t windows < <(find validated -name 'libmpv-runtime-windows-x86_64.zip')
-          mapfile -t android < <(find validated -name 'libmpv-runtime-android.zip')
-          mapfile -t macos < <(find validated -name 'libmpv-runtime-macos*' ! -name '*.sha256')
-          mapfile -t ios < <(find validated -name 'libmpv-runtime-ios*' ! -name '*.sha256')
-          args=()
-          for path in "${windows[@]}"; do args+=(--artifact "windows-x86_64=$path"); done
-          for path in "${android[@]}"; do args+=(--artifact "android=$path"); done
-          for path in "${macos[@]}"; do args+=(--artifact "macos=$path"); done
-          for path in "${ios[@]}"; do args+=(--artifact "ios=$path"); done
-          libmpv-runtime promotion assemble --id "${{ inputs.promotion_id }}" \
-            "${args[@]}" \
-            --evidence "windows-x86_64=$(find validated -name windows-x86_64.json -print -quit)" \
-            --evidence "android=$(find validated -name android.json -print -quit)" \
-            --evidence "macos=$(find validated -name macos.json -print -quit)" \
-            --evidence "ios=$(find validated -name ios.json -print -quit)" \
-            --linux-report "$(find validated -name linux-system.json -print -quit)" \
-            --output release
-          libmpv-runtime packages generate --promotion release/promotion.json --output release/packages
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          find release/packages -mindepth 1 -maxdepth 1 -type d -print0 | \
-            while IFS= read -r -d '' package; do
-              (cd release/packages && zip -qr "../$(basename "$package").zip" "$(basename "$package")")
-            done
-          rm -rf release/packages
-          gh release create "${{ inputs.promotion_id }}" release/* \
-            --title "${{ inputs.promotion_id }}" --generate-notes
+          gh release create "$PROMOTION_ID" release-assets/* \
+            --draft --target "$GITHUB_SHA" --title "$PROMOTION_ID" --generate-notes
+          gh release edit "$PROMOTION_ID" --draft=false

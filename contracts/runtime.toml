@@ -1,17 +1,64 @@
-schema_version = 2
+schema_version = 3
 minimum_media_kit = "1.2.6"
 minimum_media_kit_video = "2.0.1"
 
-required_audio_filters = [
-  "loudnorm",
-  "dynaudnorm",
-  "acompressor",
-  "alimiter",
-  "volume",
-  "aresample",
-  "ebur128",
-  "astats",
-]
+[toolchain]
+python = "3.12"
+flutter = "3.44.7"
+dart_sdk = "^3.6.0"
+android_gradle_plugin = "8.13.0"
+android_compile_sdk = 36
+android_min_sdk = 23
+android_emulator_api = 35
+cmake_minimum = "3.18"
+swift_tools = "5.9"
+ios_deployment_target = "13.0"
+macos_deployment_target = "10.15"
+
+[consumer.minimum]
+media_kit = "1.2.6"
+media_kit_video = "2.0.1"
+
+[consumer.current]
+media_kit = "1.2.6"
+media_kit_video = "2.0.1"
+
+[probe]
+expected_gain_db = -6.0206
+gain_tolerance_db = 0.35
+http_after_load_filter = "volume"
+
+[[probe.filters]]
+name = "loudnorm"
+expression = "loudnorm=I=-16:TP=-1.5:LRA=11"
+
+[[probe.filters]]
+name = "dynaudnorm"
+expression = "dynaudnorm=f=250:g=9:p=0.9:m=10"
+
+[[probe.filters]]
+name = "acompressor"
+expression = "acompressor=threshold=0.25:ratio=2:attack=20:release=250"
+
+[[probe.filters]]
+name = "alimiter"
+expression = "alimiter=limit=0.95:attack=5:release=50"
+
+[[probe.filters]]
+name = "volume"
+expression = "volume=0.5"
+
+[[probe.filters]]
+name = "aresample"
+expression = "aresample=48000"
+
+[[probe.filters]]
+name = "ebur128"
+expression = "ebur128=metadata=1"
+
+[[probe.filters]]
+name = "astats"
+expression = "astats=metadata=1:reset=1"
 
 [artifact.windows-x86_64]
 platform = "windows"
@@ -19,6 +66,23 @@ architectures = ["x86_64"]
 sources = ["windows_libmpv", "windows_angle"]
 package = "zip"
 load_names = ["libmpv-2.dll"]
+required_files = [
+  "libmpv-2.dll",
+  "libmpv.dll.a",
+  "include/client.h",
+  "ANGLE/d3dcompiler_47.dll",
+  "ANGLE/libEGL.dll",
+  "ANGLE/libGLESv2.dll",
+  "ANGLE/vk_swiftshader.dll",
+  "ANGLE/vulkan-1.dll",
+  "ANGLE/zlib.dll",
+  "ANGLE/include/EGL/egl.h",
+  "ANGLE/include/GLES2/gl2.h",
+  "ANGLE/lib/libEGL.dll.lib",
+  "ANGLE/lib/libGLESv2.dll.lib",
+]
+behavior_mode = "native"
+behavior_architectures = ["x86_64"]
 
 [artifact.android]
 platform = "android"
@@ -26,6 +90,14 @@ architectures = ["arm64-v8a", "armeabi-v7a", "x86_64", "x86"]
 sources = ["android_libmpv", "android_helper"]
 package = "zip"
 load_names = ["libmpv.so", "libmediakitandroidhelper.so"]
+required_libraries = [
+  "libmpv.so",
+  "libavcodec.so",
+  "libc++_shared.so",
+  "libmediakitandroidhelper.so",
+]
+behavior_mode = "native-subset"
+behavior_architectures = ["x86_64"]
 
 [artifact.macos]
 platform = "macos"
@@ -33,6 +105,8 @@ architectures = ["arm64", "x86_64"]
 sources = ["darwin_macos"]
 package = "xcframeworks"
 load_names = ["Mpv.framework/Mpv"]
+behavior_mode = "native"
+behavior_architectures = ["arm64"]
 
 [artifact.ios]
 platform = "ios"
@@ -40,6 +114,9 @@ architectures = ["arm64", "simulator-arm64", "simulator-x86_64"]
 sources = ["darwin_ios"]
 package = "xcframeworks"
 load_names = ["Mpv.framework/Mpv"]
+behavior_mode = "source-equivalent"
+behavior_reference = "macos"
+behavior_architectures = []
 
 [linux]
 soname_major = 2
@@ -48,15 +125,25 @@ build_packages = ["libmpv-dev", "libepoxy-dev"]
 
 [linux.profile.debian-12]
 runtime_packages = ["libmpv2"]
+os_id = "debian"
+version_pattern = "^12$"
 
 [linux.profile.debian-13]
 runtime_packages = ["libmpv2"]
+os_id = "debian"
+version_pattern = "^13$"
 
 [linux.profile."ubuntu-24.04"]
 runtime_packages = ["libmpv2"]
+os_id = "ubuntu"
+version_pattern = '^24\.04$'
 
 [linux.profile.fedora]
 runtime_packages = ["mpv-libs"]
+os_id = "fedora"
+version_pattern = "^[0-9]+$"
 
 [linux.profile.arch]
 runtime_packages = ["mpv"]
+os_id = "arch"
+version_pattern = "^$"

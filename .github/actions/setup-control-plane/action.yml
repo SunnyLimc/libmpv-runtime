@@ -1,0 +1,63 @@
+name: Set up libmpv-runtime control plane
+description: Install the locked Python environment and verify one immutable validation plan.
+
+inputs:
+  discovery-run-id:
+    description: Run ID of discover upstream validation plan.
+    required: true
+  github-token:
+    description: Read-only token used to download the discovery artifact.
+    required: true
+
+outputs:
+  python-version:
+    description: Python version sealed into the validation plan.
+    value: ${{ steps.plan.outputs.python-version }}
+  flutter-version:
+    description: Flutter version sealed into the validation plan.
+    value: ${{ steps.plan.outputs.flutter-version }}
+  media-kit-version:
+    description: Current MediaKit validation version.
+    value: ${{ steps.plan.outputs.media-kit-version }}
+  media-kit-video-version:
+    description: Current MediaKit Video validation version.
+    value: ${{ steps.plan.outputs.media-kit-video-version }}
+  android-emulator-api:
+    description: Android emulator API sealed into the validation plan.
+    value: ${{ steps.plan.outputs.android-emulator-api }}
+  plan-sha256:
+    description: SHA-256 of validation-plan.json.
+    value: ${{ steps.plan.outputs.plan-sha256 }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: validation-plan
+        path: work/plan
+        run-id: ${{ inputs.discovery-run-id }}
+        github-token: ${{ inputs.github-token }}
+    - id: bootstrap
+      shell: bash
+      run: >-
+        node -e
+        "const p=require('./work/plan/validation-plan.json');
+        process.stdout.write('python-version='+p.toolchain.python+'\n')"
+        >> "$GITHUB_OUTPUT"
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      with:
+        python-version: ${{ steps.bootstrap.outputs.python-version }}
+    - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      with:
+        version: "0.12.0"
+        enable-cache: true
+    - shell: bash
+      run: uv sync --locked --extra dev
+    - id: plan
+      shell: bash
+      run: |
+        uv run libmpv-runtime plan verify \
+          --path work/plan/validation-plan.json --revision "$GITHUB_SHA"
+        uv run libmpv-runtime plan export \
+          --path work/plan/validation-plan.json --github-output "$GITHUB_OUTPUT"

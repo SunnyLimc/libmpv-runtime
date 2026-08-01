@@ -1,0 +1,22 @@
+// swift-tools-version: @@SWIFT_TOOLS@@
+import PackageDescription
+let artifacts: [String: (String, String)] = [
+@@DECLARATIONS@@
+]
+let frameworks = [
+@@TARGETS@@
+]
+let package = Package(
+  name: "@@NAME@@",
+  platforms: [@@SWIFT_PLATFORM@@],
+  products: [
+    .library(name: "media-kit-libs-@@PLATFORM@@-video", targets: ["@@NAME@@"] + frameworks),
+    .library(name: "Mpv", targets: ["Mpv"]),
+  ],
+  targets: frameworks.map { framework in
+    .binaryTarget(name: framework, url: artifacts[framework]!.0, checksum: artifacts[framework]!.1)
+  } + [
+    .target(name: "@@NAME@@", dependencies: frameworks.map { .target(name: $0) },
+            resources: [.process("PrivacyInfo.xcprivacy")])
+  ]
+)

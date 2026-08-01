@@ -1,80 +1,94 @@
 # Architecture
 
-## Direct intake, not a universal builder
+## One plan, independent gates, one sealed result
 
-Platform builders already encode SDK, ABI, linker, codec, and packaging work.
-Reimplementing them here would create a second large dependency graph without
-improving the product contract. This repository therefore owns selection,
-normalization, validation, and promotion; upstream projects continue to own
-compilation.
+Upstream builders remain responsible for SDKs, codecs, ABIs, linking, and their
+dependency trees. This repository owns the trust boundary after those builders
+publish a release.
 
 ```text
-maintained release channel
-          |
-          v
-candidate.json (release id, tag, commit, asset digest)
-          |
-          v
-intake.json + unchanged downloaded bytes
-          |
-          v
-canonical platform stage
-          |
-          +---- binary/ABI/dependency/filter inspection
-          +---- native local + HTTP decoded-PCM probe
-          +---- real Flutter/MediaKit consumer
-          |
-          v
-immutable runtime-YYYYMMDD.N promotion
-          |
-          v
-exact-name MediaKit drop-in packages
+latest release channels + checkout contract/toolchain
+                         |
+                         v
+                 validation-plan.json
+                  /      |       \
+                 v       v        v
+          exact intake  ...   exact intake
+                 |                 |
+                 v                 v
+          canonical stage  ... canonical stage
+                 |                 |
+         structure / behavior / minimum+current consumers
+                  \       |       /
+                   sealed evidence
+                         |
+                         v
+                  validated-runtime
+                         |
+                         v
+             runtime-YYYYMMDD.N promotion
+                         |
+                         v
+              exact-name MediaKit packages
 ```
 
-There is no source version lock, patch series, builder pin, compiler image, or
-fallback source build in the default path. If an upstream later stops producing
-a viable target, validation fails and the previous promotion remains current.
-Only evidence of a persistent gap justifies adding a narrowly scoped builder.
+Discovery groups source rules by repository, so macOS and iOS share one GitHub
+release query and one resolved commit. The plan is bound to the full repository
+SHA, the hashes of `contracts/runtime.toml` and `sources/upstreams.toml`, the
+Flutter/toolchain contract, and every selected upstream asset. A legacy asset
+without a GitHub digest is streamed and hashed during plan creation; validators
+still receive only fully hashed assets. Non-GitHub asset hosts are rejected.
 
 ## Authorities
 
-- `contracts/runtime.toml` defines supported platforms, architectures, loader
-  names, Linux SONAME, and required audio filters.
-- `sources/upstreams.toml` defines maintained repositories, `latest` release
-  channels, and exact asset-name patterns. It must not contain dependency
-  versions.
-- `candidate.json` freezes what discovery observed, but is not trusted yet.
-- `intake.json` binds the actual downloaded bytes to independently calculated
-  SHA-256 digests.
-- evidence files are append-only gate state: structure, behavior, then consumer.
-- `promotion.json` is the only accepted runtime identity. Consumers never use
-  an upstream `latest` URL.
+- `contracts/runtime.toml` owns platform, architecture, toolchain, consumer,
+  Linux SONAME, and decoded-PCM probe requirements.
+- `sources/upstreams.toml` owns maintained repositories, the `latest` channel,
+  and exact asset-name patterns. It contains no builder dependency pins.
+- `validation-plan.json` is the only input authority for a validation run.
+- `intake.json` proves that downloaded bytes match the plan.
+- structure, behavior, and consumer reports are independent raw observations.
+- sealed evidence requires every applicable report and every consumer profile;
+  it is never updated in place.
+- `validation-index.json` hashes one complete cross-platform fan-in.
+- `promotion.json` is the published runtime identity. Generated packages never
+  use an upstream `latest` URL.
+
+The JSON Schemas in `contracts/` are executed by the control plane, not merely
+documentation. Typed Python parsers additionally enforce semantic rules such as
+source-equivalent release identity and complete target/profile sets.
 
 ## Platform normalization
 
-Windows keeps `libmpv-2.dll`, its import library and headers, and the ANGLE DLL
-set expected by MediaKit. Android extracts the native dependency closure from
-the universal upstream APK, excludes its app-only `libplayer.so`, and adds only
-`libmediakitandroidhelper.so` from MediaKit's package. Apple preserves all
-XCFrameworks from the `video-encodersgpl` bundle and also emits one zip per
-framework for SwiftPM.
+Windows retains `libmpv-2.dll`, its import library and headers, and MediaKit's
+expected ANGLE layout. Android extracts the native dependency closure from the
+universal upstream APK, removes app-only `libplayer.so`, and adds only
+`libmediakitandroidhelper.so`. Apple preserves every XCFramework and emits both
+an aggregate tarball and per-framework SwiftPM archives.
 
-Linux is intentionally different. `media_kit_video` links with `pkg-config mpv`
-and records the linked SONAME; installing another private libmpv after building
-does not make one Flutter binary portable between SONAME 1 and 2. The supported
-baseline is therefore distribution `libmpv.so.2`, with `libmpv-dev` and
-`libepoxy-dev` in the application build environment. There is no hidden runtime
-fallback.
+Linux deliberately has no bundled artifact. The application links against the
+distribution runtime and SONAME; a private post-build replacement cannot make
+that binary portable across incompatible SONAMEs. Debian 12, Debian 13, Ubuntu
+24.04, Fedora, and Arch each run structure and native decoded-PCM gates in their
+own container.
+The gate verifies `/etc/os-release` against the named profile and records it in
+the sealed evidence, so a mislabeled container cannot impersonate another
+distribution.
 
-## Validation semantics
+## Validation truth
 
-Structure validation checks real binary facts: PE/ELF architecture, Android
-load alignment for 16 KiB devices, complete ABI sets, required loader names,
-Apple slices, and filter strings in Avfilter. Behavior validation dynamically
-loads libmpv and observes decoded audio. Consumer validation uses the generated
-package in a Flutter app and exercises online playback after applying `af`.
+Structure validation reads PE, ELF, and XCFramework facts, including all Android
+ABIs and 16 KiB alignment. Behavior validation dynamically loads libmpv and
+checks actual decoded audio, online Range playback, and after-load filter
+insertion. Consumer validation creates a real Flutter application, installs the
+generated exact-name package, and records actual Flutter and resolved pub
+versions plus every consumed artifact's name, size, and SHA-256. Promotion
+requires both consumer profiles to match the bytes it is about to publish.
 
-iOS currently uses native macOS DSP evidence from the same upstream release
-plus an iOS-simulator compile/link/plugin consumer gate. It is labeled
-`source-equivalent`, never native iOS behavior. Promotion metadata keeps that
-distinction visible.
+iOS behavior is explicitly `source-equivalent`: it reuses native macOS DSP
+evidence only when both artifacts resolve to the same upstream release and
+commit, while iOS still has its own simulator compile/link/plugin gate. It is
+never mislabeled as a native iOS playback probe.
+
+All disposable work directories are created by the Python control plane and
+carry an ownership marker. An unowned directory is refused rather than erased.

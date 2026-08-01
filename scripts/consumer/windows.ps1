@@ -2,18 +2,12 @@ $ErrorActionPreference = 'Stop'
 
 $root = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_ROOT)
 $artifact = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_ARTIFACT)
-$evidence = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_EVIDENCE)
-$consumerRoot = Join-Path $root 'work/consumer-windows'
+$consumerRoot = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_WORK)
+$plan = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_PLAN)
+$report = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_REPORT)
 $serve = Join-Path $consumerRoot 'server'
-$generated = Join-Path $root 'build/generated-packages-windows'
+$generated = Join-Path $consumerRoot 'generated'
 $fixture = Join-Path $consumerRoot 'app'
-foreach ($target in @($consumerRoot, $generated)) {
-    $full = [IO.Path]::GetFullPath($target)
-    if (-not $full.StartsWith($root + [IO.Path]::DirectorySeparatorChar)) {
-        throw "Refusing to clean path outside repository: $full"
-    }
-    if (Test-Path -LiteralPath $full) { Remove-Item -LiteralPath $full -Recurse -Force }
-}
 New-Item -ItemType Directory -Force -Path $serve | Out-Null
 Copy-Item -LiteralPath (Join-Path $root 'fixtures/media_kit_consumer') -Destination $fixture -Recurse
 Copy-Item -LiteralPath $artifact -Destination (Join-Path $serve ([IO.Path]::GetFileName($artifact)))
@@ -34,6 +28,8 @@ try {
         --output $manifest
     libmpv-runtime packages generate --promotion $manifest --platform windows --output $generated
     flutter create --platforms=windows --project-name libmpv_runtime_consumer $fixture
+    dart pub add -C $fixture "media_kit:$env:LIBMPV_RUNTIME_MEDIA_KIT" `
+        "media_kit_video:$env:LIBMPV_RUNTIME_MEDIA_KIT_VIDEO"
     dart pub add -C $fixture "media_kit_libs_windows_video@{path: $generated/media_kit_libs_windows_video}"
     Push-Location $fixture
     try {
@@ -47,7 +43,9 @@ try {
     } finally {
         Pop-Location
     }
-    libmpv-runtime evidence consumer --path $evidence `
+    libmpv-runtime consumer report --plan $plan --target windows-x86_64 `
+        --profile $env:LIBMPV_RUNTIME_PROFILE --app $fixture --artifact $artifact `
+        --output $report `
         --detail platform=windows --detail onlinePlayback=passed --detail filterAfterLoad=passed
 } finally {
     Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue

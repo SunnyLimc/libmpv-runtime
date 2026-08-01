@@ -2,18 +2,12 @@ $ErrorActionPreference = 'Stop'
 
 $root = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_ROOT)
 $artifact = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_ARTIFACT)
-$evidence = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_EVIDENCE)
-$consumerRoot = Join-Path $root 'work/consumer-android'
+$consumerRoot = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_WORK)
+$plan = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_PLAN)
+$report = [IO.Path]::GetFullPath($env:LIBMPV_RUNTIME_REPORT)
 $serve = Join-Path $consumerRoot 'server'
 $fixture = Join-Path $consumerRoot 'app'
-$generated = Join-Path $root 'build/generated-packages-android'
-foreach ($target in @($consumerRoot, $generated)) {
-    $full = [IO.Path]::GetFullPath($target)
-    if (-not $full.StartsWith($root + [IO.Path]::DirectorySeparatorChar)) {
-        throw "Refusing to clean path outside repository: $full"
-    }
-    if (Test-Path -LiteralPath $full) { Remove-Item -LiteralPath $full -Recurse -Force }
-}
+$generated = Join-Path $consumerRoot 'generated'
 New-Item -ItemType Directory -Force -Path $serve | Out-Null
 Copy-Item -LiteralPath (Join-Path $root 'fixtures/media_kit_consumer') -Destination $fixture -Recurse
 Copy-Item -LiteralPath $artifact -Destination (Join-Path $serve ([IO.Path]::GetFileName($artifact)))
@@ -32,6 +26,8 @@ try {
         --artifact "android=$artifact" --base-url "http://127.0.0.1:$port" --output $manifest
     libmpv-runtime packages generate --promotion $manifest --platform android --output $generated
     flutter create --platforms=android --project-name libmpv_runtime_consumer $fixture
+    dart pub add -C $fixture "media_kit:$env:LIBMPV_RUNTIME_MEDIA_KIT" `
+        "media_kit_video:$env:LIBMPV_RUNTIME_MEDIA_KIT_VIDEO"
     Add-Content -LiteralPath (Join-Path $fixture 'android/gradle.properties') -Value @(
         'kotlin.incremental=false',
         'kotlin.compiler.execution.strategy=in-process'
@@ -62,7 +58,10 @@ try {
         Start-Sleep -Milliseconds 500
     }
     if (-not $passed) { throw 'Android MediaKit consumer did not report success' }
-    libmpv-runtime evidence consumer --path $evidence --detail platform=android `
+    libmpv-runtime consumer report --plan $plan --target android `
+        --profile $env:LIBMPV_RUNTIME_PROFILE --app $fixture --artifact $artifact `
+        --output $report `
+        --detail platform=android `
         --detail onlinePlayback=passed --detail filterAfterLoad=passed --detail jniHelper=passed
 } finally {
     Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue

@@ -1,0 +1,55 @@
+import java.nio.file.Files
+import java.security.MessageDigest
+
+group 'com.alexmercerind.media_kit_libs_android_video'
+version '1.0'
+
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath 'com.android.tools.build:gradle:@@ANDROID_GRADLE_PLUGIN@@' }
+}
+
+rootProject.allprojects { repositories { google(); mavenCentral() } }
+apply plugin: 'com.android.library'
+
+def runtimeUrl = System.getenv('LIBMPV_RUNTIME_ANDROID_URL') ?: '@@URL@@'
+def runtimeSha256 = System.getenv('LIBMPV_RUNTIME_ANDROID_SHA256') ?: '@@SHA256@@'
+def runtimeArchive = file("$buildDir/libmpv-runtime/runtime.zip")
+def runtimeDirectory = file("$buildDir/libmpv-runtime/extracted")
+
+tasks.register('prepareLibmpvRuntime') {
+    inputs.property('runtimeUrl', runtimeUrl)
+    inputs.property('runtimeSha256', runtimeSha256)
+    outputs.dir(runtimeDirectory)
+    doLast {
+        runtimeArchive.parentFile.mkdirs()
+        if (!runtimeArchive.exists()) {
+            new URL(runtimeUrl).openConnection().with { connection ->
+                connectTimeout = 30_000
+                readTimeout = 180_000
+                runtimeArchive.withOutputStream { stream -> stream << inputStream }
+            }
+        }
+        def digest = MessageDigest.getInstance('SHA-256')
+            .digest(Files.readAllBytes(runtimeArchive.toPath())).encodeHex().toString()
+        if (digest != runtimeSha256) {
+            runtimeArchive.delete()
+            throw new GradleException("libmpv-runtime SHA-256 mismatch: $digest")
+        }
+        delete runtimeDirectory
+        copy { from zipTree(runtimeArchive); into runtimeDirectory }
+    }
+}
+
+android {
+    namespace 'com.alexmercerind.media_kit_libs_android_video'
+    compileSdkVersion @@ANDROID_COMPILE_SDK@@
+    defaultConfig { minSdkVersion @@ANDROID_MIN_SDK@@ }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    sourceSets { main { jniLibs.srcDirs = ["$buildDir/libmpv-runtime/extracted/jniLibs"] } }
+}
+
+preBuild.dependsOn(tasks.named('prepareLibmpvRuntime'))

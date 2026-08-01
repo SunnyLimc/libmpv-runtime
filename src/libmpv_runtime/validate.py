@@ -2,24 +2,17 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import platform
 import plistlib
+import re
 import struct
 from pathlib import Path
 from typing import Any
 
 from .errors import VerificationError
-from .evidence import create_structure_evidence
-from .files import read_json
+from .files import read_json, write_json
 from .models import ArtifactContract, RepositoryConfig
 
-_ANGLE_DLLS = (
-    "d3dcompiler_47.dll",
-    "libEGL.dll",
-    "libGLESv2.dll",
-    "vk_swiftshader.dll",
-    "vulkan-1.dll",
-    "zlib.dll",
-)
 _ELF_MACHINE = {
     "arm64-v8a": 183,
     "armeabi-v7a": 40,
@@ -87,20 +80,16 @@ def _elf(path: Path) -> tuple[int, int]:
     return machine, min(alignments)
 
 
-def _validate_windows(stage: Path, filters: tuple[str, ...]) -> dict[str, Any]:
+def _validate_windows(
+    stage: Path, artifact: ArtifactContract, filters: tuple[str, ...]
+) -> dict[str, Any]:
     library = _file(stage / "libmpv-2.dll")
     if _pe_machine(library) != 0x8664:
         raise VerificationError("Windows libmpv is not x86_64")
-    _file(stage / "libmpv.dll.a")
-    _file(stage / "include" / "client.h")
-    for name in _ANGLE_DLLS:
-        _file(stage / "ANGLE" / name)
-    _file(stage / "ANGLE" / "include" / "EGL" / "egl.h")
-    _file(stage / "ANGLE" / "include" / "GLES2" / "gl2.h")
-    _file(stage / "ANGLE" / "lib" / "libEGL.dll.lib")
-    _file(stage / "ANGLE" / "lib" / "libGLESv2.dll.lib")
+    for relative in artifact.required_files:
+        _file(stage / relative)
     _contains_filters([library], filters)
-    return {"architecture": "x86_64", "angle": list(_ANGLE_DLLS)}
+    return {"architecture": "x86_64", "requiredFiles": list(artifact.required_files)}
 
 
 def _validate_android(
@@ -113,7 +102,7 @@ def _validate_android(
         if not libraries:
             raise VerificationError(f"Android ABI is empty: {abi}")
         names = {path.name for path in libraries}
-        required = {"libmpv.so", "libavcodec.so", "libc++_shared.so", "libmediakitandroidhelper.so"}
+        required = set(artifact.required_libraries)
         missing = required - names
         if missing:
             raise VerificationError(f"Android {abi} is missing: {', '.join(sorted(missing))}")
@@ -152,9 +141,20 @@ def _validate_darwin(
         if not isinstance(library, dict):
             raise VerificationError("Mpv.xcframework contains an invalid slice")
         architectures = library.get("SupportedArchitectures")
-        if isinstance(architectures, list):
-            observed_architectures.update(str(item) for item in architectures)
-    required_architectures = {"arm64", "x86_64"}
+        supported_platform = library.get("SupportedPlatform")
+        variant = library.get("SupportedPlatformVariant")
+        if not isinstance(architectures, list) or not isinstance(supported_platform, str):
+            raise VerificationError("Mpv.xcframework slice metadata is incomplete")
+        if artifact.platform == "ios" and supported_platform != "ios":
+            continue
+        if artifact.platform == "macos" and supported_platform != "macos":
+            continue
+        for architecture in architectures:
+            name = str(architecture)
+            if artifact.platform == "ios" and variant == "simulator":
+                name = f"simulator-{name}"
+            observed_architectures.add(name)
+    required_architectures = set(artifact.architectures)
     if not required_architectures.issubset(observed_architectures):
         raise VerificationError(
             f"Mpv.xcframework is missing architectures: "
@@ -180,26 +180,44 @@ def validate_structure(
     provenance = read_json(provenance_path)
     filters = config.contract.required_audio_filters
     if artifact.platform == "windows":
-        details = _validate_windows(stage, filters)
+        details = _validate_windows(stage, artifact, filters)
     elif artifact.platform == "android":
         details = _validate_android(stage, artifact, filters)
     elif artifact.platform in {"macos", "ios"}:
         details = _validate_darwin(stage, artifact, filters)
     else:
         raise VerificationError(f"unsupported platform: {artifact.platform}")
-    return create_structure_evidence(
+    write_json(
         evidence,
-        target=artifact.name,
-        filters=filters,
-        details=details,
-        provenance=provenance,
+        {
+            "schemaVersion": 1,
+            "kind": "structure",
+            "target": artifact.name,
+            "requiredFilters": list(filters),
+            "details": details,
+            "provenance": provenance,
+        },
     )
+    return evidence
 
 
-def validate_linux_system(config: RepositoryConfig, profile: str) -> dict[str, Any]:
+def validate_linux_system(
+    config: RepositoryConfig, profile: str, plan_sha256: str
+) -> dict[str, Any]:
     if profile not in config.contract.linux.profiles:
         choices = ", ".join(sorted(config.contract.linux.profiles))
         raise VerificationError(f"unknown Linux profile {profile!r}; choose one of: {choices}")
+    profile_contract = config.contract.linux.profiles[profile]
+    try:
+        os_release = platform.freedesktop_os_release()
+    except OSError as error:
+        raise VerificationError(f"cannot read /etc/os-release: {error}") from error
+    os_id = os_release.get("ID", "")
+    version_id = os_release.get("VERSION_ID", "")
+    if os_id != profile_contract.os_id or not re.fullmatch(
+        profile_contract.version_pattern, version_id
+    ):
+        raise VerificationError(f"Linux profile {profile} does not match host {os_id} {version_id}")
     discovered = ctypes.util.find_library("mpv")
     if not discovered:
         raise VerificationError("system libmpv was not found")
@@ -217,7 +235,11 @@ def validate_linux_system(config: RepositoryConfig, profile: str) -> dict[str, A
     symbol.restype = ctypes.c_ulong
     api = int(symbol())
     return {
+        "schemaVersion": 1,
+        "kind": "linux-structure",
+        "planSha256": plan_sha256,
         "profile": profile,
+        "osRelease": {"id": os_id, "versionId": version_id},
         "library": discovered,
         "clientApi": f"{api >> 16}.{api & 0xFFFF}",
         "runtimePackages": list(config.contract.linux.profiles[profile].runtime_packages),

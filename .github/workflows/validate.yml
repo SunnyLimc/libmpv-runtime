@@ -1,184 +1,286 @@
-name: validate runtime candidates
+name: validate runtime plan
 
 on:
   workflow_dispatch:
+    inputs:
+      discovery_run_id:
+        description: Successful discover-upstream-validation-plan run ID
+        required: true
+        type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
-  group: validate-runtime-candidates
+  group: validate-runtime-plan-${{ inputs.discovery_run_id }}
   cancel-in-progress: false
 
 env:
   PYTHONUNBUFFERED: "1"
+  PLAN: work/plan/validation-plan.json
 
 jobs:
   windows:
     runs-on: windows-2025
-    timeout-minutes: 75
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: "3.12"
-      - run: python -m pip install --disable-pip-version-check -e .
-      - name: Discover and acquire
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          libmpv-runtime candidate discover --source windows_libmpv --source windows_angle --output work/candidates
-          libmpv-runtime candidate acquire --candidate work/candidates/windows_libmpv.json --output work/intake/windows_libmpv
-          libmpv-runtime candidate acquire --candidate work/candidates/windows_angle.json --output work/intake/windows_angle
-      - name: Normalize and validate structure
-        run: >-
-          libmpv-runtime normalize --artifact windows-x86_64
-          --intake work/intake/windows_libmpv/intake.json
-          --intake work/intake/windows_angle/intake.json
-          --output build/stage/windows-x86_64
-      - run: >-
-          libmpv-runtime validate artifact --artifact windows-x86_64
-          --stage build/stage/windows-x86_64
-          --evidence build/evidence/windows-x86_64.json
-      - name: Decode local and online PCM through every filter
-        shell: pwsh
-        env:
-          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
-          LIBMPV_RUNTIME_STAGE: ${{ github.workspace }}\build\stage\windows-x86_64
-          LIBMPV_RUNTIME_WORK: ${{ github.workspace }}\work\probe-windows
-          LIBMPV_RUNTIME_EVIDENCE: ${{ github.workspace }}\build\evidence\windows-x86_64.json
-        run: ./scripts/probe/windows.ps1
-      - run: libmpv-runtime package --artifact windows-x86_64 --stage build/stage/windows-x86_64 --output dist/windows
-      - name: Run the real Flutter MediaKit consumer
-        shell: pwsh
-        env:
-          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
-          LIBMPV_RUNTIME_ARTIFACT: ${{ github.workspace }}\dist\windows\libmpv-runtime-windows-x86_64.zip
-          LIBMPV_RUNTIME_EVIDENCE: ${{ github.workspace }}\build\evidence\windows-x86_64.json
-        run: ./scripts/consumer/windows.ps1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: validation-windows
-          path: |
-            dist/windows/*
-            build/evidence/windows-x86_64.json
-          if-no-files-found: error
-
-  android:
-    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: "3.12"
-      - run: python -m pip install --disable-pip-version-check -e .
-      - name: Discover, acquire, normalize and inspect every ABI
-        env:
-          GH_TOKEN: ${{ github.token }}
+          persist-credentials: false
+      - id: control
+        uses: ./.github/actions/setup-control-plane
+        with:
+          discovery-run-id: ${{ inputs.discovery_run_id }}
+          github-token: ${{ github.token }}
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ steps.control.outputs.flutter-version }}
+          channel: stable
+          cache: true
+      - name: Acquire, normalize, validate and package
+        shell: pwsh
         run: |
-          libmpv-runtime candidate discover --source android_libmpv --source android_helper --output work/candidates
-          libmpv-runtime candidate acquire --candidate work/candidates/android_libmpv.json --output work/intake/android_libmpv
-          libmpv-runtime candidate acquire --candidate work/candidates/android_helper.json --output work/intake/android_helper
-          libmpv-runtime normalize --artifact android \
+          uv run libmpv-runtime intake acquire --plan $env:PLAN --source windows_libmpv --output work/intake/windows_libmpv
+          uv run libmpv-runtime intake acquire --plan $env:PLAN --source windows_angle --output work/intake/windows_angle
+          uv run libmpv-runtime stage normalize --artifact windows-x86_64 `
+            --intake work/intake/windows_libmpv/intake.json `
+            --intake work/intake/windows_angle/intake.json `
+            --output build/stage/windows-x86_64
+          uv run libmpv-runtime stage validate --artifact windows-x86_64 `
+            --stage build/stage/windows-x86_64 --report build/reports/structure/windows-x86_64.json
+          uv run libmpv-runtime artifact package --artifact windows-x86_64 `
+            --stage build/stage/windows-x86_64 --output validated
+      - name: Probe decoded PCM
+        run: >-
+          uv run libmpv-runtime probe run
+          --plan "$env:PLAN"
+          --target windows-x86_64
+          --stage build/stage/windows-x86_64
+          --work work/probe-windows
+          --report build/reports/behavior/windows-x86_64.json
+      - name: Validate minimum and current MediaKit consumers
+        shell: pwsh
+        run: |
+          foreach ($profile in @('minimum', 'current')) {
+            uv run libmpv-runtime consumer run --plan $env:PLAN --group windows `
+              --profile $profile --work "work/consumer-windows-$profile" `
+              --artifact "windows-x86_64=validated/libmpv-runtime-windows-x86_64.zip" `
+              --report "windows-x86_64=build/reports/consumer/$profile/windows-x86_64.json"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - name: Seal releasable evidence
+        shell: pwsh
+        run: >-
+          uv run libmpv-runtime evidence seal
+          --plan $env:PLAN --target windows-x86_64
+          --structure build/reports/structure/windows-x86_64.json
+          --behavior build/reports/behavior/windows-x86_64.json
+          --consumer minimum=build/reports/consumer/minimum/windows-x86_64.json
+          --consumer current=build/reports/consumer/current/windows-x86_64.json
+          --output validated/windows-x86_64.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: validation-windows
+          path: validated/*
+          if-no-files-found: error
+          retention-days: 14
+
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - id: control
+        uses: ./.github/actions/setup-control-plane
+        with:
+          discovery-run-id: ${{ inputs.discovery_run_id }}
+          github-token: ${{ github.token }}
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ steps.control.outputs.flutter-version }}
+          channel: stable
+          cache: true
+      - name: Acquire, normalize, validate and package every ABI
+        run: |
+          uv run libmpv-runtime intake acquire --plan "$PLAN" --source android_libmpv --output work/intake/android_libmpv
+          uv run libmpv-runtime intake acquire --plan "$PLAN" --source android_helper --output work/intake/android_helper
+          uv run libmpv-runtime stage normalize --artifact android \
             --intake work/intake/android_libmpv/intake.json \
             --intake work/intake/android_helper/intake.json \
             --output build/stage/android
-          libmpv-runtime validate artifact --artifact android --stage build/stage/android \
-            --evidence build/evidence/android.json
-      - run: libmpv-runtime package --artifact android --stage build/stage/android --output dist/android
-      - name: Probe libmpv and the real Flutter consumer in an emulator
+          uv run libmpv-runtime stage validate --artifact android \
+            --stage build/stage/android --report build/reports/structure/android.json
+          uv run libmpv-runtime artifact package --artifact android \
+            --stage build/stage/android --output validated
+      - name: Probe runtime and validate both MediaKit profiles in one emulator
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
-        env:
-          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
-          LIBMPV_RUNTIME_STAGE: ${{ github.workspace }}/build/stage/android
-          LIBMPV_RUNTIME_WORK: ${{ github.workspace }}/work/probe-android
-          LIBMPV_RUNTIME_EVIDENCE: ${{ github.workspace }}/build/evidence/android.json
-          LIBMPV_RUNTIME_ARTIFACT: ${{ github.workspace }}/dist/android/libmpv-runtime-android.zip
         with:
-          api-level: 35
+          api-level: ${{ steps.control.outputs.android-emulator-api }}
           arch: x86_64
           profile: pixel_6
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: bash scripts/probe/android-emulator.sh && bash scripts/consumer/android.sh
+          script: |
+            uv run libmpv-runtime probe run --plan "$PLAN" --target android --stage build/stage/android --work work/probe-android --report build/reports/behavior/android.json
+            for profile in minimum current; do
+              uv run libmpv-runtime consumer run --plan "$PLAN" --group android --profile "$profile" --work "work/consumer-android-$profile" --artifact android=validated/libmpv-runtime-android.zip --report "android=build/reports/consumer/$profile/android.json"
+            done
+      - name: Seal releasable evidence
+        run: >-
+          uv run libmpv-runtime evidence seal
+          --plan "$PLAN" --target android
+          --structure build/reports/structure/android.json
+          --behavior build/reports/behavior/android.json
+          --consumer minimum=build/reports/consumer/minimum/android.json
+          --consumer current=build/reports/consumer/current/android.json
+          --output validated/android.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: validation-android
-          path: |
-            dist/android/*
-            build/evidence/android.json
+          path: validated/*
           if-no-files-found: error
+          retention-days: 14
 
   apple:
     runs-on: macos-26
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: "3.12"
-      - run: python -m pip install --disable-pip-version-check -e .
-      - name: Discover, acquire, normalize and inspect XCFrameworks
-        env:
-          GH_TOKEN: ${{ github.token }}
+          persist-credentials: false
+      - id: control
+        uses: ./.github/actions/setup-control-plane
+        with:
+          discovery-run-id: ${{ inputs.discovery_run_id }}
+          github-token: ${{ github.token }}
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ steps.control.outputs.flutter-version }}
+          channel: stable
+          cache: true
+      - name: Acquire, normalize, validate and package XCFrameworks
         run: |
-          libmpv-runtime candidate discover --source darwin_macos --source darwin_ios --output work/candidates
           for source in darwin_macos darwin_ios; do
-            libmpv-runtime candidate acquire --candidate "work/candidates/$source.json" --output "work/intake/$source"
+            uv run libmpv-runtime intake acquire --plan "$PLAN" --source "$source" --output "work/intake/$source"
           done
-          libmpv-runtime normalize --artifact macos --intake work/intake/darwin_macos/intake.json --output build/stage/macos
-          libmpv-runtime normalize --artifact ios --intake work/intake/darwin_ios/intake.json --output build/stage/ios
-          libmpv-runtime validate artifact --artifact macos --stage build/stage/macos --evidence build/evidence/macos.json
-          libmpv-runtime validate artifact --artifact ios --stage build/stage/ios --evidence build/evidence/ios.json
-      - name: Decode local and online PCM on macOS
-        env:
-          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
-          LIBMPV_RUNTIME_STAGE: ${{ github.workspace }}/build/stage/macos
-          LIBMPV_RUNTIME_WORK: ${{ github.workspace }}/work/probe-macos
-          LIBMPV_RUNTIME_EVIDENCE: ${{ github.workspace }}/build/evidence/macos.json
-        run: bash scripts/probe/darwin.sh
-      - name: Record iOS source-equivalent DSP evidence
-        run: >-
-          libmpv-runtime evidence behavior --path build/evidence/ios.json
-          --filters loudnorm dynaudnorm acompressor alimiter volume aresample ebur128 astats
-          --measured-gain-db -6.0206 --mode source-equivalent --reference-target macos
-      - run: |
-          libmpv-runtime package --artifact macos --stage build/stage/macos --output dist/apple
-          libmpv-runtime package --artifact ios --stage build/stage/ios --output dist/apple
-      - name: Run macOS playback and build an iOS simulator consumer
-        env:
-          LIBMPV_RUNTIME_ROOT: ${{ github.workspace }}
-          LIBMPV_RUNTIME_MACOS_ARTIFACTS: ${{ join(fromJSON('["dist/apple/libmpv-runtime-macos.tar.gz","dist/apple/libmpv-runtime-macos-Mpv.zip","dist/apple/libmpv-runtime-macos-Avfilter.zip","dist/apple/libmpv-runtime-macos-Avcodec.zip"]'), ' ') }}
-          LIBMPV_RUNTIME_IOS_ARTIFACTS: ${{ join(fromJSON('["dist/apple/libmpv-runtime-ios.tar.gz","dist/apple/libmpv-runtime-ios-Mpv.zip","dist/apple/libmpv-runtime-ios-Avfilter.zip","dist/apple/libmpv-runtime-ios-Avcodec.zip"]'), ' ') }}
-          LIBMPV_RUNTIME_MACOS_EVIDENCE: ${{ github.workspace }}/build/evidence/macos.json
-          LIBMPV_RUNTIME_IOS_EVIDENCE: ${{ github.workspace }}/build/evidence/ios.json
-        run: bash scripts/consumer/darwin.sh
+          uv run libmpv-runtime stage normalize --artifact macos --intake work/intake/darwin_macos/intake.json --output build/stage/macos
+          uv run libmpv-runtime stage normalize --artifact ios --intake work/intake/darwin_ios/intake.json --output build/stage/ios
+          uv run libmpv-runtime stage validate --artifact macos --stage build/stage/macos --report build/reports/structure/macos.json
+          uv run libmpv-runtime stage validate --artifact ios --stage build/stage/ios --report build/reports/structure/ios.json
+          uv run libmpv-runtime artifact package --artifact macos --stage build/stage/macos --output validated
+          uv run libmpv-runtime artifact package --artifact ios --stage build/stage/ios --output validated
+      - name: Probe macOS and derive iOS source-equivalent behavior
+        run: |
+          uv run libmpv-runtime probe run --plan "$PLAN" --target macos --stage build/stage/macos --work work/probe-macos --report build/reports/behavior/macos.json
+          uv run libmpv-runtime behavior derive --plan "$PLAN" --target ios --reference-report build/reports/behavior/macos.json --output build/reports/behavior/ios.json
+      - name: Validate minimum and current MediaKit consumers
+        run: |
+          artifacts=()
+          for path in validated/libmpv-runtime-macos*; do
+            [[ "$path" == *.sha256 ]] || artifacts+=(--artifact "macos=$path")
+          done
+          for path in validated/libmpv-runtime-ios*; do
+            [[ "$path" == *.sha256 ]] || artifacts+=(--artifact "ios=$path")
+          done
+          for profile in minimum current; do
+            uv run libmpv-runtime consumer run --plan "$PLAN" --group apple --profile "$profile" \
+              --work "work/consumer-apple-$profile" "${artifacts[@]}" \
+              --report "macos=build/reports/consumer/$profile/macos.json" \
+              --report "ios=build/reports/consumer/$profile/ios.json"
+          done
+      - name: Seal releasable evidence
+        run: |
+          for target in macos ios; do
+            uv run libmpv-runtime evidence seal --plan "$PLAN" --target "$target" \
+              --structure "build/reports/structure/$target.json" \
+              --behavior "build/reports/behavior/$target.json" \
+              --consumer "minimum=build/reports/consumer/minimum/$target.json" \
+              --consumer "current=build/reports/consumer/current/$target.json" \
+              --output "validated/$target.json"
+          done
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: validation-apple
-          path: |
-            dist/apple/*
-            build/evidence/macos.json
-            build/evidence/ios.json
+          path: validated/*
           if-no-files-found: error
+          retention-days: 14
 
-  linux-system:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: debian-12
+            image: debian:12
+          - profile: debian-13
+            image: debian:13
+          - profile: ubuntu-24.04
+            image: ubuntu:24.04
+          - profile: fedora
+            image: fedora:latest
+          - profile: arch
+            image: archlinux:latest
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: "3.12"
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libmpv2 libmpv-dev libepoxy-dev
-          python -m pip install --disable-pip-version-check -e .
-          libmpv-runtime validate linux --profile ubuntu-24.04 --output linux-system.json
+          persist-credentials: false
+      - id: control
+        uses: ./.github/actions/setup-control-plane
+        with:
+          discovery-run-id: ${{ inputs.discovery_run_id }}
+          github-token: ${{ github.token }}
+      - name: Validate system libmpv and native DSP in ${{ matrix.profile }}
+        env:
+          IMAGE: ${{ matrix.image }}
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          uv_path="$(command -v uv)"
+          docker run --rm \
+            -e GITHUB_SHA \
+            -e PROFILE \
+            -e PYTHON_VERSION="${{ steps.control.outputs.python-version }}" \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -v "$uv_path:/usr/local/bin/uv:ro" \
+            -w /workspace \
+            "$IMAGE" bash scripts/ci/linux-profile.sh
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: validation-linux-system
-          path: linux-system.json
+          name: validation-linux-${{ matrix.profile }}
+          path: validated/linux-system-${{ matrix.profile }}.json
           if-no-files-found: error
+          retention-days: 14
+
+  seal:
+    needs: [windows, android, apple, linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-control-plane
+        with:
+          discovery-run-id: ${{ inputs.discovery_run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: validation-*
+          path: validated-input
+          merge-multiple: true
+      - name: Seal one complete validation result
+        run: >-
+          uv run libmpv-runtime validation seal
+          --plan "$PLAN"
+          --input validated-input
+          --output validated-runtime
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: validated-runtime
+          path: validated-runtime/*
+          if-no-files-found: error
+          retention-days: 14

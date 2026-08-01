@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "libmpv-runtime"
-version = "0.2.0a1"
+version = "0.3.0a1"
 description = "Upstream libmpv runtime intake, validation and promotion for MediaKit"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -15,7 +15,7 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3.12",
 ]
-dependencies = []
+dependencies = ["jsonschema==4.25.1"]
 
 [project.optional-dependencies]
 dev = [

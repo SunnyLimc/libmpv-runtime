@@ -2,7 +2,7 @@ schema_version = 1
 
 # Source rules intentionally select a release channel, not a dependency version.
 # The selected release, commit, asset URL and digest become immutable only in a
-# promotion manifest after all validators pass.
+# validation plan before any download or validator starts.
 
 [source.windows_libmpv]
 repository = "zhongfly/mpv-winbuild"

@@ -13,15 +13,6 @@ from .files import write_json
 from .models import ArtifactContract, RepositoryConfig
 from .process import run
 
-_ANGLE_DLLS = (
-    "d3dcompiler_47.dll",
-    "libEGL.dll",
-    "libGLESv2.dll",
-    "vk_swiftshader.dll",
-    "vulkan-1.dll",
-    "zlib.dll",
-)
-
 
 def _fresh_directory(path: Path) -> None:
     if path.exists():
@@ -36,28 +27,16 @@ def _find_one(root: Path, name: str) -> Path:
     return matches[0]
 
 
-def _asset_paths(intake_path: Path, value: dict[str, Any]) -> list[Path]:
-    assets = value.get("assets")
-    assert isinstance(assets, list)
-    return [
-        (intake_path.parent / str(item["path"])).resolve()
-        for item in assets
-        if isinstance(item, dict)
-    ]
-
-
 def _by_source(intakes: list[Path]) -> tuple[dict[str, list[Path]], list[dict[str, Any]]]:
     files: dict[str, list[Path]] = {}
     provenance: list[dict[str, Any]] = []
     for intake_path in intakes:
-        value = load_intake(intake_path)
-        candidate = value["candidate"]
-        assert isinstance(candidate, dict)
-        source = candidate.get("source")
-        if not isinstance(source, str) or source in files:
+        intake = load_intake(intake_path)
+        source = intake.candidate.source
+        if source in files:
             raise IntegrityError(f"duplicate or invalid intake source: {source}")
-        files[source] = _asset_paths(intake_path, value)
-        provenance.append(value)
+        files[source] = [(intake_path.parent / asset.path).resolve() for asset in intake.assets]
+        provenance.append(intake.to_dict())
     return files, provenance
 
 
@@ -66,7 +45,9 @@ def _extract_7z(archive: Path, output: Path) -> None:
     run(["7z", "x", "-y", f"-o{output}", str(archive)], cwd=output)
 
 
-def _normalize_windows(files: dict[str, list[Path]], output: Path) -> None:
+def _normalize_windows(
+    files: dict[str, list[Path]], output: Path, artifact: ArtifactContract
+) -> None:
     with tempfile.TemporaryDirectory(prefix="libmpv-runtime-windows-") as temporary:
         temporary_root = Path(temporary)
         mpv_root = temporary_root / "mpv"
@@ -87,11 +68,15 @@ def _normalize_windows(files: dict[str, list[Path]], output: Path) -> None:
             shutil.copy2(header, include / header.name)
         angle = output / "ANGLE"
         shutil.copytree(angle_root, angle)
-        for name in _ANGLE_DLLS:
-            _find_one(angle, name)
+        for relative in artifact.required_files:
+            if relative.startswith("ANGLE/"):
+                _find_one(angle, Path(relative).name)
 
 
-def _normalize_android(files: dict[str, list[Path]], output: Path, abis: tuple[str, ...]) -> None:
+def _normalize_android(
+    files: dict[str, list[Path]], output: Path, artifact: ArtifactContract
+) -> None:
+    abis = artifact.architectures
     apk_assets = files.get("android_libmpv", [])
     helper_assets = files.get("android_helper", [])
     if len(apk_assets) != 1 or len(helper_assets) != len(abis):
@@ -129,7 +114,7 @@ def _normalize_android(files: dict[str, list[Path]], output: Path, abis: tuple[s
             seen[abi].add(destination.name)
 
     for abi, names in seen.items():
-        required = {"libmpv.so", "libavcodec.so", "libc++_shared.so", "libmediakitandroidhelper.so"}
+        required = set(artifact.required_libraries)
         missing = required - names
         if missing:
             raise IntegrityError(f"Android {abi} is missing: {', '.join(sorted(missing))}")
@@ -171,9 +156,9 @@ def normalize(
         )
     _fresh_directory(output)
     if artifact.platform == "windows":
-        _normalize_windows(files, output)
+        _normalize_windows(files, output, artifact)
     elif artifact.platform == "android":
-        _normalize_android(files, output, artifact.architectures)
+        _normalize_android(files, output, artifact)
     elif artifact.platform == "macos":
         _normalize_darwin(files, "darwin_macos", output)
     elif artifact.platform == "ios":
@@ -183,7 +168,7 @@ def normalize(
     write_json(
         output / "libmpv-runtime.json",
         {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "artifact": artifact.name,
             "contract": "contracts/runtime.toml",
             "intakes": provenance,

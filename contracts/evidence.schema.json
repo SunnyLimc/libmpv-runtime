@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SunnyLimc/libmpv-runtime/contracts/evidence.schema.json",
+  "title": "libmpv-runtime sealed artifact evidence",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "sealed",
+    "target",
+    "planSha256",
+    "repositoryRevision",
+    "contractSha256",
+    "checks",
+    "structure",
+    "behavior",
+    "consumers",
+    "provenance"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "sealed": { "const": true },
+    "target": { "enum": ["windows-x86_64", "android", "macos", "ios"] },
+    "planSha256": { "$ref": "#/$defs/sha256" },
+    "repositoryRevision": { "$ref": "#/$defs/commit" },
+    "contractSha256": { "$ref": "#/$defs/sha256" },
+    "checks": {
+      "const": { "structure": true, "behavior": true, "consumers": true }
+    },
+    "structure": { "type": "object" },
+    "behavior": { "type": "object" },
+    "consumers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "kind",
+          "target",
+          "planSha256",
+          "profile",
+          "flutter",
+          "packages",
+          "artifacts",
+          "details"
+        ],
+        "properties": {
+          "schemaVersion": { "const": 1 },
+          "kind": { "const": "consumer" },
+          "target": { "type": "string", "minLength": 1 },
+          "planSha256": { "$ref": "#/$defs/sha256" },
+          "profile": { "type": "string", "minLength": 1 },
+          "flutter": { "type": "string", "minLength": 1 },
+          "packages": { "type": "object" },
+          "artifacts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["name", "sha256", "size"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "size": { "type": "integer", "minimum": 1 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "details": { "type": "object" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "provenance": { "type": "object" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+  },
+  "additionalProperties": false
+}

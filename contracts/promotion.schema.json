@@ -3,24 +3,151 @@
   "$id": "https://github.com/SunnyLimc/libmpv-runtime/contracts/promotion.schema.json",
   "title": "libmpv-runtime promotion",
   "type": "object",
-  "required": ["schemaVersion", "id", "createdAt", "repository", "contract", "artifacts", "linux", "evidence"],
+  "required": [
+    "schemaVersion",
+    "id",
+    "createdAt",
+    "repository",
+    "repositoryRevision",
+    "validationPlan",
+    "contract",
+    "sources",
+    "artifacts",
+    "linux",
+    "evidence"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "id": { "type": "string", "pattern": "^runtime-[0-9]{8}\\.[1-9][0-9]*$" },
     "createdAt": { "type": "string", "format": "date-time" },
     "repository": { "type": "string", "format": "uri" },
-    "contract": {
+    "repositoryRevision": { "$ref": "#/$defs/commit" },
+    "validationPlan": { "$ref": "#/$defs/namedDigest" },
+    "contract": { "$ref": "#/$defs/pathDigest" },
+    "sources": { "$ref": "#/$defs/pathDigest" },
+    "artifacts": {
       "type": "object",
-      "required": ["path", "sha256"],
+      "required": ["windows-x86_64", "android", "macos", "ios"],
       "properties": {
-        "path": { "const": "contracts/runtime.toml" },
-        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        "windows-x86_64": { "$ref": "#/$defs/artifactList" },
+        "android": { "$ref": "#/$defs/artifactList" },
+        "macos": { "$ref": "#/$defs/artifactList" },
+        "ios": { "$ref": "#/$defs/artifactList" }
       },
       "additionalProperties": false
     },
-    "artifacts": { "type": "object" },
-    "linux": { "type": "object" },
-    "evidence": { "type": "object" }
+    "linux": {
+      "type": "object",
+      "required": ["artifact", "sonameMajor", "validationReports", "profiles"],
+      "properties": {
+        "artifact": { "type": "null" },
+        "sonameMajor": { "type": "integer", "minimum": 1 },
+        "validationReports": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/linuxReport" }
+        },
+        "profiles": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["windows-x86_64", "android", "macos", "ios"],
+      "properties": {
+        "windows-x86_64": { "$ref": "evidence.schema.json" },
+        "android": { "$ref": "evidence.schema.json" },
+        "macos": { "$ref": "evidence.schema.json" },
+        "ios": { "$ref": "evidence.schema.json" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "namedDigest": {
+      "type": "object",
+      "required": ["name", "sha256"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "pathDigest": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["role", "name", "url", "sha256", "size"],
+      "properties": {
+        "role": { "type": "string", "pattern": "^(bundle|spm:[A-Za-z0-9_-]+)$" },
+        "name": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "artifactList": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "linuxReport": {
+      "type": "object",
+      "required": [
+        "profile",
+        "name",
+        "url",
+        "sha256",
+        "library",
+        "clientApi",
+        "runtimePackages",
+        "osRelease",
+        "behavior"
+      ],
+      "properties": {
+        "profile": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "library": { "type": "string", "minLength": 1 },
+        "clientApi": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+        "runtimePackages": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "osRelease": {
+          "type": "object",
+          "required": ["id", "versionId"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "versionId": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "behavior": { "type": "object" }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }

@@ -1,0 +1,17 @@
+Pod::Spec.new do |s|
+  system("make")
+  s.name = '@@NAME@@'
+  s.version = '0.0.0'
+  s.summary = 'Validated libmpv runtime for package:media_kit'
+  s.homepage = 'https://github.com/SunnyLimc/libmpv-runtime'
+  s.license = { :file => '../LICENSE' }
+  s.author = { 'libmpv-runtime' => 'noreply@example.invalid' }
+  s.source = { :path => '.' }
+  s.source_files = '@@NAME@@/Sources/@@NAME@@/**/*.swift'
+  s.dependency '@@FLUTTER_DEPENDENCY@@'
+  s.resource_bundles = { '@@NAME@@_privacy' => ['@@NAME@@/Sources/@@NAME@@/PrivacyInfo.xcprivacy'] }
+  s.vendored_frameworks = 'Frameworks/*.xcframework'
+  s.platform = :@@COCOA_PLATFORM@@, '@@MINIMUM@@'
+  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
+  s.swift_version = '@@SWIFT_TOOLS@@'
+end

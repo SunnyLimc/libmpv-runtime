@@ -1,37 +1,42 @@
 # Release and promotion
 
-## Identity
+An accepted runtime is named `runtime-YYYYMMDD.N`. It contains complete Windows,
+Android, macOS, and iOS artifacts. Linux contributes five sealed system-runtime
+reports, never a bundled library.
 
-An accepted set is named `runtime-YYYYMMDD.N`. The identifier is immutable and
-contains complete Windows, Android, macOS, and iOS assets. Linux contributes a
-compatibility contract and validation reports, not a bundled library.
+## Workflow protocol
 
-“Do not pin builder versions” applies only to upstream candidate selection.
-Every promoted byte and every consumer URL is pinned by promotion ID and
-SHA-256. Upstream `latest` never appears in a generated MediaKit package.
+1. `quality.yml` runs formatting, linting, strict typing, an 80% coverage gate,
+   wheel construction, shell parsing, and workflow linting.
+2. `discover.yml` resolves all release channels once and uploads exactly one
+   immutable `validation-plan` artifact for 14 days.
+3. `validate.yml` accepts the discovery run ID. Every native job verifies that
+   the plan belongs to its checkout before intake. Windows, Android, Apple, and
+   all five Linux profiles emit sealed outputs; a required fan-in job creates a
+   single `validated-runtime` artifact and `validation-index.json`.
+4. `promote.yml` accepts one successful validation run ID and an immutable
+   promotion ID. It verifies workflow name, result, commit SHA, every indexed
+   byte, every target, every Linux profile, and the original plan before it
+   assembles a release.
 
-## Workflows
+Promotion targets the `release` environment; repository administrators should
+protect it before the first publication. All release assets are attested.
+GitHub publication is staged as a draft and made visible only after every asset
+is prepared and uploaded. The workflow does not discover, download, normalize,
+or rerun a validator.
 
-1. `quality.yml` is hermetic and performs no upstream downloads.
-2. `discover.yml` resolves release channels and retains candidate JSON for 14
-   days. Discovery cannot publish.
-3. `validate.yml` downloads exact candidate assets, normalizes them, performs
-   native and Flutter consumer gates, and uploads short-lived validation
-   artifacts. It never builds mpv.
-4. `promote.yml` is given one successful validation run ID. It refuses missing
-   or incomplete evidence, copies the exact validated artifacts, creates
-   `promotion.json` and `SHA256SUMS`, generates drop-in package zips, and creates
-   the GitHub release. The validated Linux profile report is copied into the
-   release and bound by its SHA-256 in `promotion.json`.
+## Failure and rollback
 
-If any upstream, structure, filter, decoded-PCM, online source, or consumer gate
-fails, no promotion is created. The previous release remains usable and there
-is no automatic fallback compile.
+A missing upstream digest, changed byte, target mismatch, incomplete consumer
+profile, failed filter, or absent Linux profile stops the run. No fallback build
+or partial release is produced. The previous immutable promotion remains the
+rollback point.
 
-## Local validation during runner limits
+“Do not pin builder versions” applies only to selecting upstream release
+channels. A validation plan and promotion pin every selected release, commit,
+asset digest, control-plane revision, toolchain, evidence document, and consumer
+URL.
 
-Windows and Android candidate jobs use the same scripts as GitHub Actions.
-WSL validates the distribution-owned Linux runtime. Apple structure can be
-checked anywhere after intake, while native Apple behavior and simulator
-consumer gates remain macOS-runner requirements. A promotion cannot turn a
-missing native gate into a pass.
+No workflow is triggered by another workflow. Discovery, validation, and
+promotion are explicit checkpoints, which keeps review and release authority
+clear and prevents a scheduled upstream change from publishing automatically.

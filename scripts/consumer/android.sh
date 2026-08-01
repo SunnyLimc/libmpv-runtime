@@ -3,14 +3,12 @@ set -euo pipefail
 
 : "${LIBMPV_RUNTIME_ROOT:?required}"
 : "${LIBMPV_RUNTIME_ARTIFACT:?required}"
-: "${LIBMPV_RUNTIME_EVIDENCE:?required}"
-serve="$LIBMPV_RUNTIME_ROOT/work/consumer-android/server"
-generated="$LIBMPV_RUNTIME_ROOT/build/generated-packages-android"
-fixture="$LIBMPV_RUNTIME_ROOT/work/consumer-android/app"
-for target in "$(dirname "$serve")" "$generated"; do
-  case "$target" in "$LIBMPV_RUNTIME_ROOT"/*) ;; *) exit 64 ;; esac
-  rm -rf "$target"
-done
+: "${LIBMPV_RUNTIME_WORK:?required}"
+: "${LIBMPV_RUNTIME_PLAN:?required}"
+: "${LIBMPV_RUNTIME_REPORT:?required}"
+serve="$LIBMPV_RUNTIME_WORK/server"
+generated="$LIBMPV_RUNTIME_WORK/generated"
+fixture="$LIBMPV_RUNTIME_WORK/app"
 mkdir -p "$serve"
 cp -R "$LIBMPV_RUNTIME_ROOT/fixtures/media_kit_consumer" "$fixture"
 cp "$LIBMPV_RUNTIME_ARTIFACT" "$serve/"
@@ -28,6 +26,9 @@ libmpv-runtime packages candidate-manifest --id runtime-20000101.1 \
   --output "$manifest"
 libmpv-runtime packages generate --promotion "$manifest" --platform android --output "$generated"
 flutter create --platforms=android --project-name libmpv_runtime_consumer "$fixture"
+dart pub add -C "$fixture" \
+  "media_kit:$LIBMPV_RUNTIME_MEDIA_KIT" \
+  "media_kit_video:$LIBMPV_RUNTIME_MEDIA_KIT_VIDEO"
 cat >> "$fixture/android/gradle.properties" <<'EOF'
 kotlin.incremental=false
 kotlin.compiler.execution.strategy=in-process
@@ -52,6 +53,8 @@ for _ in $(seq 1 120); do
   sleep 0.5
 done
 [[ "$passed" == true ]]
-libmpv-runtime evidence consumer --path "$LIBMPV_RUNTIME_EVIDENCE" \
+libmpv-runtime consumer report --plan "$LIBMPV_RUNTIME_PLAN" --target android \
+  --profile "$LIBMPV_RUNTIME_PROFILE" --app "$fixture" \
+  --artifact "$LIBMPV_RUNTIME_ARTIFACT" --output "$LIBMPV_RUNTIME_REPORT" \
   --detail platform=android --detail onlinePlayback=passed --detail filterAfterLoad=passed \
   --detail jniHelper=passed

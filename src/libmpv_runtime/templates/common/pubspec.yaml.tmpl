@@ -1,0 +1,17 @@
+name: @@NAME@@
+description: Validated libmpv runtime drop-in for package:media_kit.
+version: 0.0.0
+publish_to: none
+
+environment:
+  sdk: @@DART_SDK@@
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      @@PLATFORM@@:
+@@PACKAGE_LINE@@        pluginClass: @@PLUGIN_CLASS@@

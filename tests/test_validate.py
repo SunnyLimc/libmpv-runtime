@@ -88,7 +88,14 @@ def test_darwin_structure_requires_real_filter_table(
         framework.mkdir(parents=True)
         with (framework / "Info.plist").open("wb") as file:
             plistlib.dump(
-                {"AvailableLibraries": [{"SupportedArchitectures": ["arm64", "x86_64"]}]},
+                {
+                    "AvailableLibraries": [
+                        {
+                            "SupportedArchitectures": ["arm64", "x86_64"],
+                            "SupportedPlatform": "macos",
+                        }
+                    ]
+                },
                 file,
             )
     binary = stage / "Avfilter.xcframework" / "macos-arm64_x86_64" / "Avfilter"
