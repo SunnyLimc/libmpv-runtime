@@ -5,6 +5,14 @@ import 'package:media_kit/media_kit.dart';
 
 import 'runtime_gate.dart';
 
+Future<void> _disposePlayerBestEffort(Player player) async {
+  try {
+    await player.dispose().timeout(const Duration(seconds: 5));
+  } catch (error) {
+    stderr.writeln('Player disposal did not finish cleanly: $error');
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const url = String.fromEnvironment('LIBMPV_RUNTIME_TEST_URL');
@@ -31,7 +39,7 @@ Future<void> main() async {
       // persist the marker before terminating the process.
       await Future<void>.delayed(const Duration(seconds: 2));
     }
-    await player.dispose();
+    await _disposePlayerBestEffort(player);
     exit(0);
   } catch (error, stackTrace) {
     print('LIBMPV_RUNTIME_CONSUMER_ERROR: $error');
@@ -40,7 +48,7 @@ Future<void> main() async {
     if (Platform.isAndroid) {
       await Future<void>.delayed(const Duration(seconds: 2));
     }
-    await player.dispose();
+    await _disposePlayerBestEffort(player);
     exit(1);
   }
 }

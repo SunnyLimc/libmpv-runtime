@@ -241,6 +241,7 @@ def test_consumer_gate_checks_native_playback_progress_instead_of_eof() -> None:
         root / "scripts/consumer/darwin.sh"
     ).read_text(encoding="utf-8")
     assert "Platform.isAndroid" in main
+    assert "player.dispose().timeout" in main
 
 
 def test_dependency_and_flutter_observation_parse_machine_json(
