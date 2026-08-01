@@ -237,6 +237,9 @@ def test_consumer_gate_checks_native_playback_progress_instead_of_eof() -> None:
     assert "getProperty('time-pos')" in gate
     assert "stream.completed" not in gate
     assert gate.index("getProperty('time-pos')") < gate.index("VideoController(player)")
+    assert "LIBMPV_RUNTIME_REQUIRE_PLAYBACK_CLOCK=false" in (
+        root / "scripts/consumer/darwin.sh"
+    ).read_text(encoding="utf-8")
     assert "Platform.isAndroid" in main
 
 

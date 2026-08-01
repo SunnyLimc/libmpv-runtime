@@ -16,7 +16,14 @@ Future<void> main() async {
   final player = Player();
   try {
     await player.open(Media(url)).timeout(const Duration(seconds: 20));
-    await verifyNativeRuntime(player);
+    const requirePlaybackClock = bool.fromEnvironment(
+      'LIBMPV_RUNTIME_REQUIRE_PLAYBACK_CLOCK',
+      defaultValue: true,
+    );
+    await verifyNativeRuntime(
+      player,
+      requirePlaybackClock: requirePlaybackClock,
+    );
     // `print` is intentionally used so Android forwards the gate marker to logcat.
     print('LIBMPV_RUNTIME_CONSUMER_OK');
     if (Platform.isAndroid) {

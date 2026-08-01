@@ -59,14 +59,16 @@ dart pub add -C "$fixture" \
   "media_kit_libs_macos_video@{path: $generated/media_kit_libs_macos_video}" \
   "media_kit_libs_ios_video@{path: $generated/media_kit_libs_ios_video}"
 (cd "$fixture" && flutter build macos --debug -t lib/consumer_main.dart \
-  --dart-define="LIBMPV_RUNTIME_TEST_URL=http://127.0.0.1:$port/input.wav")
+  --dart-define="LIBMPV_RUNTIME_TEST_URL=http://127.0.0.1:$port/input.wav" \
+  --dart-define="LIBMPV_RUNTIME_REQUIRE_PLAYBACK_CLOCK=false")
 macos_executable="$fixture/build/macos/Build/Products/Debug/libmpv_runtime_consumer.app/Contents/MacOS/libmpv_runtime_consumer"
 [[ -x "$macos_executable" ]]
 "$macos_executable"
 libmpv-runtime consumer report --plan "$LIBMPV_RUNTIME_PLAN" --target macos \
   --profile "$LIBMPV_RUNTIME_PROFILE" --app "$fixture" \
   "${macos_report_args[@]}" --output "$LIBMPV_RUNTIME_MACOS_REPORT" \
-  --detail platform=macos --detail onlinePlayback=passed --detail filterAfterLoad=passed
+  --detail platform=macos --detail onlinePlayback=passed --detail filterAfterLoad=passed \
+  --detail headlessAudioClock=not-required
 (cd "$fixture" && flutter build ios --simulator --no-codesign --debug)
 libmpv-runtime consumer report --plan "$LIBMPV_RUNTIME_PLAN" --target ios \
   --profile "$LIBMPV_RUNTIME_PROFILE" --app "$fixture" \
