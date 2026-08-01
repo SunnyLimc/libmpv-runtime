@@ -209,6 +209,16 @@ def test_http_fixture_server_bind_does_not_resolve_hostname(
         server.server_close()
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    ["scripts/consumer/darwin.sh", "scripts/probe/darwin.sh"],
+)
+def test_darwin_shell_adapters_avoid_bash_4_builtins(relative_path: str) -> None:
+    script = (Path(__file__).parents[1] / relative_path).read_text(encoding="utf-8")
+    for builtin in ("mapfile", "readarray", "declare -A"):
+        assert builtin not in script
+
+
 def test_dependency_and_flutter_observation_parse_machine_json(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

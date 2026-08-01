@@ -13,8 +13,14 @@ generated="$LIBMPV_RUNTIME_WORK/generated"
 fixture="$LIBMPV_RUNTIME_WORK/app"
 mkdir -p "$serve"
 cp -R "$LIBMPV_RUNTIME_ROOT/fixtures/media_kit_consumer" "$fixture"
-mapfile -t macos_artifacts <<< "$LIBMPV_RUNTIME_MACOS_ARTIFACTS"
-mapfile -t ios_artifacts <<< "$LIBMPV_RUNTIME_IOS_ARTIFACTS"
+macos_artifacts=()
+while IFS= read -r path; do
+  [[ -n "$path" ]] && macos_artifacts+=("$path")
+done <<< "$LIBMPV_RUNTIME_MACOS_ARTIFACTS"
+ios_artifacts=()
+while IFS= read -r path; do
+  [[ -n "$path" ]] && ios_artifacts+=("$path")
+done <<< "$LIBMPV_RUNTIME_IOS_ARTIFACTS"
 cp "${macos_artifacts[@]}" "${ios_artifacts[@]}" "$serve/"
 python -m libmpv_runtime.pcm fixture --output "$serve/input.wav"
 port_file="$serve/port.txt"
