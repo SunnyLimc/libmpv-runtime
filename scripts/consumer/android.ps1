@@ -13,6 +13,8 @@ Copy-Item -LiteralPath (Join-Path $root 'fixtures/media_kit_consumer') -Destinat
 Copy-Item -LiteralPath $artifact -Destination (Join-Path $serve ([IO.Path]::GetFileName($artifact)))
 python -m libmpv_runtime.pcm fixture --output (Join-Path $serve 'input.wav')
 $portFile = Join-Path $serve 'port.txt'
+Remove-Item -LiteralPath $portFile -Force -ErrorAction SilentlyContinue
+$port = $null
 $server = Start-Process -FilePath python -WindowStyle Hidden -PassThru -ArgumentList @(
     (Join-Path $root 'scripts/probe/http_media_server.py'), '--root', $serve, '--port-file', $portFile
 )
@@ -20,7 +22,10 @@ try {
     for ($attempt = 0; $attempt -lt 100 -and -not (Test-Path $portFile); $attempt++) {
         Start-Sleep -Milliseconds 100
     }
+    if (-not (Test-Path -LiteralPath $portFile)) { throw 'HTTP fixture server did not start' }
     $port = Get-Content -Raw -LiteralPath $portFile
+    adb reverse "tcp:$port" "tcp:$port" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Android reverse HTTP tunnel failed' }
     $manifest = Join-Path $serve 'candidate.json'
     libmpv-runtime packages candidate-manifest --id runtime-20000101.1 `
         --artifact "android=$artifact" --base-url "http://127.0.0.1:$port" --output $manifest
@@ -40,7 +45,7 @@ try {
     Push-Location $fixture
     try {
         flutter build apk --debug -t lib/consumer_main.dart `
-            --dart-define="LIBMPV_RUNTIME_TEST_URL=http://10.0.2.2:$port/input.wav"
+            --dart-define="LIBMPV_RUNTIME_TEST_URL=http://127.0.0.1:$port/input.wav"
         if ($LASTEXITCODE -ne 0) { throw 'Android MediaKit consumer build failed' }
     } finally {
         Pop-Location
@@ -64,5 +69,6 @@ try {
         --detail platform=android `
         --detail onlinePlayback=passed --detail filterAfterLoad=passed --detail jniHelper=passed
 } finally {
+    if ($port) { adb reverse --remove "tcp:$port" | Out-Null }
     Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
 }

@@ -32,37 +32,52 @@ python -m libmpv_runtime.pcm fixture --output "$local_dir/input.wav"
 
 remote="/data/local/tmp/libmpv-runtime-${GITHUB_RUN_ID:-local}"
 port=""
+server_pid=""
 cleanup() {
-  kill "$server_pid" 2>/dev/null || true
+  if [[ -n "$server_pid" ]]; then
+    kill "$server_pid" 2>/dev/null || true
+  fi
   if [[ -n "$port" ]]; then
     adb reverse --remove "tcp:$port" >/dev/null 2>&1 || true
   fi
   adb shell "rm -rf '$remote'" >/dev/null 2>&1 || true
 }
-adb shell "rm -rf '$remote' && mkdir -p '$remote'"
-adb push "$probe" "$remote/mpv_dsp_probe"
-adb push "$LIBMPV_RUNTIME_STAGE/jniLibs/x86_64/." "$remote/"
-adb push "$local_dir/input.wav" "$remote/input.wav"
-adb shell "chmod 755 '$remote/mpv_dsp_probe'"
+trap cleanup EXIT
+adb shell "rm -rf '$remote' && mkdir -p '$remote'" </dev/null
+adb push "$probe" "$remote/mpv_dsp_probe" </dev/null
+adb push "$LIBMPV_RUNTIME_STAGE/jniLibs/x86_64/." "$remote/" </dev/null
+adb push "$local_dir/input.wav" "$remote/input.wav" </dev/null
+adb shell "chmod 755 '$remote/mpv_dsp_probe'" </dev/null
 
-tail -n +2 "$LIBMPV_RUNTIME_PROBE_PLAN" | while IFS=$'\t' read -r filter expression; do
-  adb shell "cd '$remote' && LD_LIBRARY_PATH='$remote' ./mpv_dsp_probe '$remote/libmpv.so' '$remote/input.wav' '$remote/$filter.wav' '$expression'"
-  adb pull "$remote/$filter.wav" "$local_dir/$filter.wav" >/dev/null
-done
+http_expression=""
+while IFS=$'\t' read -r filter expression; do
+  if [[ "$filter" == "name" && "$expression" == "expression" ]]; then
+    continue
+  fi
+  if [[ "$filter" == "$LIBMPV_RUNTIME_HTTP_FILTER" ]]; then
+    http_expression="$expression"
+  fi
+  adb shell "cd '$remote' && LD_LIBRARY_PATH='$remote' ./mpv_dsp_probe '$remote/libmpv.so' '$remote/input.wav' '$remote/$filter.wav' '$expression'" </dev/null
+  adb pull "$remote/$filter.wav" "$local_dir/$filter.wav" </dev/null >/dev/null
+done < "$LIBMPV_RUNTIME_PROBE_PLAN"
+if [[ -z "$http_expression" ]]; then
+  printf 'HTTP filter is missing from probe plan: %s\n' "$LIBMPV_RUNTIME_HTTP_FILTER" >&2
+  exit 1
+fi
 
 port_file="$local_dir/http-port.txt"
 python "$LIBMPV_RUNTIME_ROOT/scripts/probe/http_media_server.py" \
   --root "$local_dir" --port-file "$port_file" &
 server_pid=$!
-trap cleanup EXIT
 for _ in $(seq 1 100); do
   [[ -f "$port_file" ]] && break
   sleep 0.1
 done
-test -f "$port_file"
+if [[ ! -f "$port_file" ]]; then
+  printf 'HTTP fixture server did not publish its port\n' >&2
+  exit 1
+fi
 port="$(cat "$port_file")"
-adb reverse "tcp:$port" "tcp:$port"
-http_expression="$(awk -F '\t' -v name="$LIBMPV_RUNTIME_HTTP_FILTER" '$1 == name { print $2 }' "$LIBMPV_RUNTIME_PROBE_PLAN")"
-test -n "$http_expression"
-adb shell "cd '$remote' && LD_LIBRARY_PATH='$remote' ./mpv_dsp_probe '$remote/libmpv.so' 'http://127.0.0.1:$port/input.wav' '$remote/volume-http.wav' '$http_expression' after-load"
-adb pull "$remote/volume-http.wav" "$local_dir/volume-http.wav"
+adb reverse "tcp:$port" "tcp:$port" </dev/null
+adb shell "cd '$remote' && LD_LIBRARY_PATH='$remote' ./mpv_dsp_probe '$remote/libmpv.so' 'http://127.0.0.1:$port/input.wav' '$remote/volume-http.wav' '$http_expression' after-load" </dev/null
+adb pull "$remote/volume-http.wav" "$local_dir/volume-http.wav" </dev/null
