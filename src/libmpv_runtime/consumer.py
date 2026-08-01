@@ -6,13 +6,13 @@ from pathlib import Path
 from .errors import VerificationError
 from .models import RepositoryConfig
 from .plan import load_plan, verify_plan
-from .process import capture, find_json_object, run
+from .process import capture, find_json_object, run, tool_command
 from .workspace import PipelineWorkspace
 
 
 def _flutter_version(root: Path) -> str:
     value = find_json_object(
-        capture(["flutter", "--version", "--machine"], cwd=root),
+        capture(tool_command("flutter", "--version", "--machine"), cwd=root),
         required_key="frameworkVersion",
     )
     if value is None:

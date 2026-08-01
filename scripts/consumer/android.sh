@@ -14,12 +14,20 @@ cp -R "$LIBMPV_RUNTIME_ROOT/fixtures/media_kit_consumer" "$fixture"
 cp "$LIBMPV_RUNTIME_ARTIFACT" "$serve/"
 python -m libmpv_runtime.pcm fixture --output "$serve/input.wav"
 port_file="$serve/port.txt"
+port=""
+cleanup() {
+  kill "$server_pid" 2>/dev/null || true
+  if [[ -n "$port" ]]; then
+    adb reverse --remove "tcp:$port" >/dev/null 2>&1 || true
+  fi
+}
 python "$LIBMPV_RUNTIME_ROOT/scripts/probe/http_media_server.py" \
   --root "$serve" --port-file "$port_file" &
 server_pid=$!
-trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+trap cleanup EXIT
 for _ in $(seq 1 100); do [[ -f "$port_file" ]] && break; sleep 0.1; done
 port="$(cat "$port_file")"
+adb reverse "tcp:$port" "tcp:$port"
 manifest="$serve/candidate.json"
 libmpv-runtime packages candidate-manifest --id runtime-20000101.1 \
   --artifact "android=$LIBMPV_RUNTIME_ARTIFACT" --base-url "http://127.0.0.1:$port" \
@@ -38,7 +46,7 @@ dart pub add -C "$fixture" \
 sed -i 's/<application/<application android:usesCleartextTraffic="true"/' \
   "$fixture/android/app/src/main/AndroidManifest.xml"
 (cd "$fixture" && flutter build apk --debug -t lib/consumer_main.dart \
-  --dart-define="LIBMPV_RUNTIME_TEST_URL=http://10.0.2.2:$port/input.wav")
+  --dart-define="LIBMPV_RUNTIME_TEST_URL=http://127.0.0.1:$port/input.wav")
 adb install -r "$fixture/build/app/outputs/flutter-apk/app-debug.apk"
 adb logcat -c
 adb shell am start -n com.example.libmpv_runtime_consumer/.MainActivity

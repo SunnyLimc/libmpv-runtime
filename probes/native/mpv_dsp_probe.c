@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
     }
 
     int options_ok =
-        set_option(&api, handle, "terminal", "no") &&
+        set_option(&api, handle, "terminal", "yes") &&
         set_option(&api, handle, "msg-level", "all=warn") &&
         set_option(&api, handle, "video", "no") &&
         set_option(&api, handle, "audio-display", "no") &&

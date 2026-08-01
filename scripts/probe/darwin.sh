@@ -36,5 +36,11 @@ test -f "$port_file"
 port="$(cat "$port_file")"
 http_expression="$(awk -F '\t' -v name="$LIBMPV_RUNTIME_HTTP_FILTER" '$1 == name { print $2 }' "$LIBMPV_RUNTIME_PROBE_PLAN")"
 test -n "$http_expression"
-DYLD_FRAMEWORK_PATH="$framework_paths" "$probe" "$library" \
-  "http://127.0.0.1:$port/input.wav" "$output/volume-http.wav" "$http_expression" after-load
+url="http://127.0.0.1:$port/input.wav"
+curl --fail --silent --show-error --range 0-31 "$url" --output /dev/null
+if ! NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost \
+  DYLD_FRAMEWORK_PATH="$framework_paths" "$probe" "$library" \
+  "$url" "$output/volume-http.wav" "$http_expression" after-load; then
+  echo "macOS libmpv HTTP after-load probe failed after the Range server passed" >&2
+  exit 1
+fi

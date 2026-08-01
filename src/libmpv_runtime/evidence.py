@@ -9,7 +9,7 @@ from .errors import IntegrityError, VerificationError
 from .files import read_json, sha256_file, sha256_json, write_json
 from .models import Intake, RepositoryConfig
 from .plan import load_plan, verify_plan
-from .process import capture, find_json_object
+from .process import capture, find_json_object, tool_command
 from .schema import validate_document
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -63,7 +63,8 @@ def derive_behavior_report(
 
 def _package_versions(app: Path) -> dict[str, str]:
     value = find_json_object(
-        capture(["dart", "pub", "deps", "--json"], cwd=app), required_key="packages"
+        capture(tool_command("dart", "pub", "deps", "--json"), cwd=app),
+        required_key="packages",
     )
     if value is None:
         raise VerificationError("dart pub deps returned no machine-readable dependency graph")
@@ -83,7 +84,7 @@ def _package_versions(app: Path) -> dict[str, str]:
 
 def _flutter_version() -> str:
     value = find_json_object(
-        capture(["flutter", "--version", "--machine"], cwd=Path.cwd()),
+        capture(tool_command("flutter", "--version", "--machine"), cwd=Path.cwd()),
         required_key="frameworkVersion",
     )
     if value is None:

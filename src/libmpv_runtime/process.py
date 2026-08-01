@@ -25,6 +25,12 @@ def find_json_object(output: str, *, required_key: str) -> dict[str, object] | N
     return None
 
 
+def tool_command(name: str, *arguments: str) -> list[str]:
+    """Resolve SDK command shims that are batch files on Windows."""
+    executable = f"{name}.bat" if os.name == "nt" else name
+    return [executable, *arguments]
+
+
 def format_command(command: Sequence[str]) -> str:
     if os.name == "nt":
         return subprocess.list2cmdline(command)

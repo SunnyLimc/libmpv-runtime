@@ -17,7 +17,7 @@ from libmpv_runtime import validate as validate_module
 from libmpv_runtime.errors import BuildError, IntegrityError, VerificationError
 from libmpv_runtime.models import RepositoryConfig
 from libmpv_runtime.plan import candidate_from_plan, create_plan, load_plan, repository_revision
-from libmpv_runtime.process import capture, find_json_object, run
+from libmpv_runtime.process import capture, find_json_object, run, tool_command
 from libmpv_runtime.validate import validate_linux_system
 
 
@@ -180,13 +180,15 @@ def test_machine_json_parser_ignores_bootstrap_output() -> None:
         "frameworkVersion": "3.44.7"
     }
     assert find_json_object(output, required_key="packages") is None
+    expected = "flutter.bat" if process_module.os.name == "nt" else "flutter"
+    assert tool_command("flutter", "--version") == [expected, "--version"]
 
 
 def test_dependency_and_flutter_observation_parse_machine_json(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     def fake_capture(command: list[str], *, cwd: Path) -> str:
-        if command[:2] == ["dart", "pub"]:
+        if command[0].removesuffix(".bat") == "dart" and command[1] == "pub":
             return json.dumps(
                 {
                     "packages": [
