@@ -219,6 +219,15 @@ def test_darwin_shell_adapters_avoid_bash_4_builtins(relative_path: str) -> None
         assert builtin not in script
 
 
+def test_apple_consumer_keeps_upstream_plugins_on_cocoapods() -> None:
+    root = Path(__file__).parents[1]
+    pubspec = (root / "fixtures/media_kit_consumer/pubspec.yaml").read_text(encoding="utf-8")
+    darwin = (root / "scripts/consumer/darwin.sh").read_text(encoding="utf-8")
+
+    assert "enable-swift-package-manager: false" in pubspec
+    assert "swift package describe" in darwin
+
+
 def test_dependency_and_flutter_observation_parse_machine_json(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

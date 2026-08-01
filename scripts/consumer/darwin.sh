@@ -46,6 +46,11 @@ libmpv-runtime packages candidate-manifest --id runtime-20000101.1 \
   "${args[@]}" --base-url "http://127.0.0.1:$port" --output "$manifest"
 libmpv-runtime packages generate --promotion "$manifest" --platform macos --platform ios \
   --output "$generated"
+for package in \
+  "$generated/media_kit_libs_macos_video/macos/media_kit_libs_macos_video" \
+  "$generated/media_kit_libs_ios_video/ios/media_kit_libs_ios_video"; do
+  (cd "$package" && swift package describe >/dev/null)
+done
 flutter create --platforms=macos,ios --project-name libmpv_runtime_consumer "$fixture"
 dart pub add -C "$fixture" \
   "media_kit:$LIBMPV_RUNTIME_MEDIA_KIT" \

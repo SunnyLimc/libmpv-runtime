@@ -18,4 +18,9 @@ dev_dependencies:
     sdk: flutter
 
 flutter:
+  # media_kit_video still uses CocoaPods on Apple platforms. Keep the runtime
+  # plugin on the same integration path until that upstream plugin supports
+  # Swift Package Manager, otherwise its linker cannot see the pod frameworks.
+  config:
+    enable-swift-package-manager: false
   uses-material-design: true
