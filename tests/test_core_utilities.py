@@ -228,6 +228,16 @@ def test_apple_consumer_keeps_upstream_plugins_on_cocoapods() -> None:
     assert "swift package describe" in darwin
 
 
+def test_consumer_gate_checks_native_playback_progress_instead_of_eof() -> None:
+    gate = (
+        Path(__file__).parents[1] / "fixtures/media_kit_consumer/lib/runtime_gate.dart"
+    ).read_text(encoding="utf-8")
+
+    assert "getProperty('af')" in gate
+    assert "getProperty('time-pos')" in gate
+    assert "stream.completed" not in gate
+
+
 def test_dependency_and_flutter_observation_parse_machine_json(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
