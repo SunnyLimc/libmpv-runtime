@@ -4,7 +4,18 @@ import argparse
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from socketserver import TCPServer
 from urllib.parse import unquote, urlsplit
+
+
+class LocalThreadingHTTPServer(ThreadingHTTPServer):
+    """HTTP fixture server whose loopback bind never depends on DNS."""
+
+    def server_bind(self) -> None:
+        TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = str(host)
+        self.server_port = int(port)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -68,7 +79,7 @@ def main() -> int:
     parser.add_argument("--port-file", required=True, type=Path)
     arguments = parser.parse_args()
     Handler.root = arguments.root.resolve()
-    server = ThreadingHTTPServer(("127.0.0.1", arguments.port), Handler)
+    server = LocalThreadingHTTPServer(("127.0.0.1", arguments.port), Handler)
     arguments.port_file.write_text(str(server.server_port), encoding="ascii")
     server.serve_forever()
     return 0

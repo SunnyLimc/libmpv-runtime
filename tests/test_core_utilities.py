@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
+import socket
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -182,6 +184,29 @@ def test_machine_json_parser_ignores_bootstrap_output() -> None:
     assert find_json_object(output, required_key="packages") is None
     expected = "flutter.bat" if process_module.os.name == "nt" else "flutter"
     assert tool_command("flutter", "--version") == [expected, "--version"]
+
+
+def test_http_fixture_server_bind_does_not_resolve_hostname(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = Path(__file__).parents[1] / "scripts/probe/http_media_server.py"
+    spec = importlib.util.spec_from_file_location("http_media_server", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(
+        socket,
+        "getfqdn",
+        lambda *_: pytest.fail("loopback fixture server attempted DNS resolution"),
+    )
+    server_type = module.LocalThreadingHTTPServer
+    handler_type = module.Handler
+    server = server_type(("127.0.0.1", 0), handler_type)
+    try:
+        assert server.server_name == "127.0.0.1"
+        assert server.server_port > 0
+    finally:
+        server.server_close()
 
 
 def test_dependency_and_flutter_observation_parse_machine_json(
