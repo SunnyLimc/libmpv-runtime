@@ -1,5 +1,5 @@
 Pod::Spec.new do |s|
-  system("make")
+  system("make", "-C", __dir__) || raise("failed to prepare validated libmpv frameworks")
   s.name = '@@NAME@@'
   s.version = '0.0.0'
   s.summary = 'Validated libmpv runtime for package:media_kit'

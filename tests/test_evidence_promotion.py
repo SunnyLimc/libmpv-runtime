@@ -373,6 +373,10 @@ def test_promotion_is_plan_bound_and_generates_real_dropin_packages(
     assert "EXPECTED_HASH" in cmake
     makefile = (packages / "media_kit_libs_macos_video/macos/Makefile").read_text(encoding="utf-8")
     assert "shasum -a 256 -c -" in makefile
+    podspec = (
+        packages / "media_kit_libs_macos_video/macos/media_kit_libs_macos_video.podspec"
+    ).read_text(encoding="utf-8")
+    assert 'system("make", "-C", __dir__) || raise' in podspec
     swift = (
         packages / "media_kit_libs_macos_video/macos/media_kit_libs_macos_video/Package.swift"
     ).read_text(encoding="utf-8")
