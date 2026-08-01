@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import subprocess
@@ -7,6 +8,21 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from .errors import BuildError
+
+
+def find_json_object(output: str, *, required_key: str) -> dict[str, object] | None:
+    """Find a JSON object in command output that may include bootstrap noise."""
+    decoder = json.JSONDecoder()
+    for offset, character in enumerate(output):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(output[offset:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict) and required_key in value:
+            return value
+    return None
 
 
 def format_command(command: Sequence[str]) -> str:

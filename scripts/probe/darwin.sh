@@ -12,8 +12,11 @@ set -euo pipefail
 probe="$LIBMPV_RUNTIME_BIN/mpv_dsp_probe"
 cc -std=c11 -O2 -Wall -Wextra -Werror \
   "$LIBMPV_RUNTIME_ROOT/probes/native/mpv_dsp_probe.c" -o "$probe"
-library="$(find "$LIBMPV_RUNTIME_STAGE/Mpv.xcframework" -path '*macos*' -path '*/Mpv.framework/Mpv' -type f -print -quit)"
-test -f "$library"
+library="$(find "$LIBMPV_RUNTIME_STAGE/Mpv.xcframework" -path '*macos*' -path '*/Mpv.framework/Mpv' -print -quit)"
+if [[ -z "$library" || ! -f "$library" ]]; then
+  echo "Mpv.framework binary is missing or has a broken symlink" >&2
+  exit 2
+fi
 framework_paths="$(find "$LIBMPV_RUNTIME_STAGE" -path '*macos*' -name '*.framework' -type d -exec dirname {} \; | sort -u | paste -sd: -)"
 
 output="$LIBMPV_RUNTIME_OUTPUT"

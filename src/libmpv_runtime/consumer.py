@@ -1,22 +1,23 @@
 from __future__ import annotations
 
-import json
 import platform
 from pathlib import Path
 
 from .errors import VerificationError
 from .models import RepositoryConfig
 from .plan import load_plan, verify_plan
-from .process import capture, run
+from .process import capture, find_json_object, run
 from .workspace import PipelineWorkspace
 
 
 def _flutter_version(root: Path) -> str:
-    try:
-        value = json.loads(capture(["flutter", "--version", "--machine"], cwd=root))
-    except json.JSONDecodeError as error:
-        raise VerificationError("flutter --version returned invalid JSON") from error
-    version = value.get("frameworkVersion") if isinstance(value, dict) else None
+    value = find_json_object(
+        capture(["flutter", "--version", "--machine"], cwd=root),
+        required_key="frameworkVersion",
+    )
+    if value is None:
+        raise VerificationError("flutter --version returned no machine-readable version")
+    version = value.get("frameworkVersion")
     if not isinstance(version, str) or not version:
         raise VerificationError("Flutter framework version is missing")
     return version

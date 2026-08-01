@@ -146,4 +146,4 @@ version_pattern = "^[0-9]+$"
 [linux.profile.arch]
 runtime_packages = ["mpv"]
 os_id = "arch"
-version_pattern = "^$"
+version_pattern = '^(?:[0-9]{8}(?:\.[0-9]+)*)?$'

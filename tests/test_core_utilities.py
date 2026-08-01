@@ -17,7 +17,7 @@ from libmpv_runtime import validate as validate_module
 from libmpv_runtime.errors import BuildError, IntegrityError, VerificationError
 from libmpv_runtime.models import RepositoryConfig
 from libmpv_runtime.plan import candidate_from_plan, create_plan, load_plan, repository_revision
-from libmpv_runtime.process import capture, run
+from libmpv_runtime.process import capture, find_json_object, run
 from libmpv_runtime.validate import validate_linux_system
 
 
@@ -172,6 +172,14 @@ def test_process_wrapper_preserves_environment_and_normalizes_failures(
     with pytest.raises(BuildError, match="exit code 9"):
         run(["tool"], cwd=tmp_path)
     assert capture(["tool"], cwd=tmp_path) == ""
+
+
+def test_machine_json_parser_ignores_bootstrap_output() -> None:
+    output = 'Downloading tool...\n{\n  "frameworkVersion": "3.44.7"\n}\nReady\n'
+    assert find_json_object(output, required_key="frameworkVersion") == {
+        "frameworkVersion": "3.44.7"
+    }
+    assert find_json_object(output, required_key="packages") is None
 
 
 def test_dependency_and_flutter_observation_parse_machine_json(

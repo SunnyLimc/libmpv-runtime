@@ -9,7 +9,7 @@ from .errors import IntegrityError, VerificationError
 from .files import read_json, sha256_file, sha256_json, write_json
 from .models import Intake, RepositoryConfig
 from .plan import load_plan, verify_plan
-from .process import capture
+from .process import capture, find_json_object
 from .schema import validate_document
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -62,11 +62,12 @@ def derive_behavior_report(
 
 
 def _package_versions(app: Path) -> dict[str, str]:
-    try:
-        value = json.loads(capture(["dart", "pub", "deps", "--json"], cwd=app))
-    except json.JSONDecodeError as error:
-        raise VerificationError("dart pub deps returned invalid JSON") from error
-    packages = value.get("packages") if isinstance(value, dict) else None
+    value = find_json_object(
+        capture(["dart", "pub", "deps", "--json"], cwd=app), required_key="packages"
+    )
+    if value is None:
+        raise VerificationError("dart pub deps returned no machine-readable dependency graph")
+    packages = value.get("packages")
     if not isinstance(packages, list):
         raise VerificationError("dart pub deps did not return packages")
     result: dict[str, str] = {}
@@ -81,11 +82,13 @@ def _package_versions(app: Path) -> dict[str, str]:
 
 
 def _flutter_version() -> str:
-    try:
-        value = json.loads(capture(["flutter", "--version", "--machine"], cwd=Path.cwd()))
-    except json.JSONDecodeError as error:
-        raise VerificationError("flutter --version returned invalid JSON") from error
-    version = value.get("frameworkVersion") if isinstance(value, dict) else None
+    value = find_json_object(
+        capture(["flutter", "--version", "--machine"], cwd=Path.cwd()),
+        required_key="frameworkVersion",
+    )
+    if value is None:
+        raise VerificationError("flutter --version returned no machine-readable version")
+    version = value.get("frameworkVersion")
     if not isinstance(version, str) or not version:
         raise VerificationError("Flutter framework version is missing")
     return version

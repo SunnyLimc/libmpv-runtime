@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from libmpv_runtime.models import RepositoryConfig
@@ -9,6 +10,10 @@ def test_contract_has_one_runtime_authority_per_platform(config: RepositoryConfi
     assert set(config.contract.artifacts) == {"windows-x86_64", "android", "macos", "ios"}
     assert config.contract.linux.soname_major == 2
     assert config.contract.linux.profiles["debian-13"].os_id == "debian"
+    arch_version = config.contract.linux.profiles["arch"].version_pattern
+    assert re.fullmatch(arch_version, "")
+    assert re.fullmatch(arch_version, "20260726.0.562117")
+    assert not re.fullmatch(arch_version, "stable")
     assert config.contract.schema_version == 3
     assert set(config.contract.consumers) == {"minimum", "current"}
     assert config.contract.toolchain.flutter == "3.44.7"
