@@ -365,14 +365,21 @@ def test_promotion_is_plan_bound_and_generates_real_dropin_packages(
         encoding="utf-8"
     )
     assert "SHA-256" in gradle
+    assert "libmpv-runtime/$runtimeSha256" in gradle
+    assert "runtime.zip.tmp" in gradle
+    assert "StandardCopyOption.REPLACE_EXISTING" in gradle
     assert str(config.contract.toolchain.android_compile_sdk) in gradle
     cmake = (packages / "media_kit_libs_windows_video/windows/CMakeLists.txt").read_text(
         encoding="utf-8"
     )
     assert windows["sha256"] in cmake
     assert "EXPECTED_HASH" in cmake
+    assert "libmpv-${RUNTIME_SHA256}" in cmake
+    assert ".libmpv-runtime-sha256" in cmake
     makefile = (packages / "media_kit_libs_macos_video/macos/Makefile").read_text(encoding="utf-8")
     assert "shasum -a 256 -c -" in makefile
+    assert "runtime-$(RUNTIME_SHA256).tar.gz" in makefile
+    assert "Frameworks/.runtime-$(RUNTIME_SHA256)" in makefile
     podspec = (
         packages / "media_kit_libs_macos_video/macos/media_kit_libs_macos_video.podspec"
     ).read_text(encoding="utf-8")

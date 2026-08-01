@@ -1,4 +1,5 @@
 import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 group 'com.alexmercerind.media_kit_libs_android_video'
@@ -14,8 +15,14 @@ apply plugin: 'com.android.library'
 
 def runtimeUrl = System.getenv('LIBMPV_RUNTIME_ANDROID_URL') ?: '@@URL@@'
 def runtimeSha256 = System.getenv('LIBMPV_RUNTIME_ANDROID_SHA256') ?: '@@SHA256@@'
-def runtimeArchive = file("$buildDir/libmpv-runtime/runtime.zip")
-def runtimeDirectory = file("$buildDir/libmpv-runtime/extracted")
+def runtimeRoot = file("$buildDir/libmpv-runtime/$runtimeSha256")
+def runtimeArchive = file("$runtimeRoot/runtime.zip")
+def runtimeArchiveTemporary = file("$runtimeRoot/runtime.zip.tmp")
+def runtimeDirectory = file("$runtimeRoot/extracted")
+def sha256 = { File path ->
+    MessageDigest.getInstance('SHA-256')
+        .digest(Files.readAllBytes(path.toPath())).encodeHex().toString()
+}
 
 tasks.register('prepareLibmpvRuntime') {
     inputs.property('runtimeUrl', runtimeUrl)
@@ -23,15 +30,31 @@ tasks.register('prepareLibmpvRuntime') {
     outputs.dir(runtimeDirectory)
     doLast {
         runtimeArchive.parentFile.mkdirs()
+        if (runtimeArchive.exists() && sha256(runtimeArchive) != runtimeSha256) {
+            runtimeArchive.delete()
+        }
         if (!runtimeArchive.exists()) {
-            new URL(runtimeUrl).openConnection().with { connection ->
-                connectTimeout = 30_000
-                readTimeout = 180_000
-                runtimeArchive.withOutputStream { stream -> stream << inputStream }
+            runtimeArchiveTemporary.delete()
+            try {
+                new URL(runtimeUrl).openConnection().with { connection ->
+                    connectTimeout = 30_000
+                    readTimeout = 180_000
+                    runtimeArchiveTemporary.withOutputStream { stream -> stream << inputStream }
+                }
+                def downloadedDigest = sha256(runtimeArchiveTemporary)
+                if (downloadedDigest != runtimeSha256) {
+                    throw new GradleException("libmpv-runtime SHA-256 mismatch: $downloadedDigest")
+                }
+                Files.move(
+                    runtimeArchiveTemporary.toPath(),
+                    runtimeArchive.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            } finally {
+                runtimeArchiveTemporary.delete()
             }
         }
-        def digest = MessageDigest.getInstance('SHA-256')
-            .digest(Files.readAllBytes(runtimeArchive.toPath())).encodeHex().toString()
+        def digest = sha256(runtimeArchive)
         if (digest != runtimeSha256) {
             runtimeArchive.delete()
             throw new GradleException("libmpv-runtime SHA-256 mismatch: $digest")
@@ -49,7 +72,7 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-    sourceSets { main { jniLibs.srcDirs = ["$buildDir/libmpv-runtime/extracted/jniLibs"] } }
+    sourceSets { main { jniLibs.srcDirs = ["$runtimeDirectory/jniLibs"] } }
 }
 
 preBuild.dependsOn(tasks.named('prepareLibmpvRuntime'))

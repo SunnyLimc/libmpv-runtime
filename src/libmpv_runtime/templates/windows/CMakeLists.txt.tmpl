@@ -14,7 +14,8 @@ if(DEFINED ENV{LIBMPV_RUNTIME_WINDOWS_SHA256})
   set(RUNTIME_SHA256 "$ENV{LIBMPV_RUNTIME_WINDOWS_SHA256}")
 endif()
 set(RUNTIME_ARCHIVE "${CMAKE_BINARY_DIR}/libmpv-runtime-${RUNTIME_SHA256}.zip")
-set(RUNTIME_ROOT "${CMAKE_BINARY_DIR}/libmpv")
+set(RUNTIME_ROOT "${CMAKE_BINARY_DIR}/libmpv-${RUNTIME_SHA256}")
+set(RUNTIME_STAMP "${RUNTIME_ROOT}/.complete")
 if(EXISTS "${RUNTIME_ARCHIVE}")
   file(SHA256 "${RUNTIME_ARCHIVE}" OBSERVED_RUNTIME_SHA256)
   if(NOT OBSERVED_RUNTIME_SHA256 STREQUAL RUNTIME_SHA256)
@@ -25,14 +26,23 @@ if(NOT EXISTS "${RUNTIME_ARCHIVE}")
   file(DOWNLOAD "${RUNTIME_URL}" "${RUNTIME_ARCHIVE}"
        EXPECTED_HASH "SHA256=${RUNTIME_SHA256}" TLS_VERIFY ON SHOW_PROGRESS)
 endif()
-if(NOT EXISTS "${RUNTIME_ROOT}/libmpv-2.dll")
+if(NOT EXISTS "${RUNTIME_STAMP}")
   file(REMOVE_RECURSE "${RUNTIME_ROOT}")
   file(MAKE_DIRECTORY "${RUNTIME_ROOT}")
   file(ARCHIVE_EXTRACT INPUT "${RUNTIME_ARCHIVE}" DESTINATION "${RUNTIME_ROOT}")
+  file(WRITE "${RUNTIME_STAMP}" "${RUNTIME_SHA256}\n")
 endif()
-if(NOT EXISTS "${CMAKE_BINARY_DIR}/ANGLE/include/EGL/egl.h")
+set(ANGLE_ROOT "${CMAKE_BINARY_DIR}/ANGLE")
+set(ANGLE_STAMP "${ANGLE_ROOT}/.libmpv-runtime-sha256")
+set(ANGLE_SHA256 "")
+if(EXISTS "${ANGLE_STAMP}")
+  file(READ "${ANGLE_STAMP}" ANGLE_SHA256)
+  string(STRIP "${ANGLE_SHA256}" ANGLE_SHA256)
+endif()
+if(NOT "${ANGLE_SHA256}" STREQUAL "${RUNTIME_SHA256}")
   file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/ANGLE")
-  file(COPY "${RUNTIME_ROOT}/ANGLE/" DESTINATION "${CMAKE_BINARY_DIR}/ANGLE")
+  file(COPY "${RUNTIME_ROOT}/ANGLE/" DESTINATION "${ANGLE_ROOT}")
+  file(WRITE "${ANGLE_STAMP}" "${RUNTIME_SHA256}\n")
 endif()
 
 set(PLUGIN_NAME "media_kit_libs_windows_video_plugin")
@@ -47,10 +57,10 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
 
 set(media_kit_libs_windows_video_bundled_libraries
   "${RUNTIME_ROOT}/libmpv-2.dll"
-  "${RUNTIME_ROOT}/ANGLE/d3dcompiler_47.dll"
-  "${RUNTIME_ROOT}/ANGLE/libEGL.dll"
-  "${RUNTIME_ROOT}/ANGLE/libGLESv2.dll"
-  "${RUNTIME_ROOT}/ANGLE/vk_swiftshader.dll"
-  "${RUNTIME_ROOT}/ANGLE/vulkan-1.dll"
-  "${RUNTIME_ROOT}/ANGLE/zlib.dll"
+  "${ANGLE_ROOT}/d3dcompiler_47.dll"
+  "${ANGLE_ROOT}/libEGL.dll"
+  "${ANGLE_ROOT}/libGLESv2.dll"
+  "${ANGLE_ROOT}/vk_swiftshader.dll"
+  "${ANGLE_ROOT}/vulkan-1.dll"
+  "${ANGLE_ROOT}/zlib.dll"
   PARENT_SCOPE)
