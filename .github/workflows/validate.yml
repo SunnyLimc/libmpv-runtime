@@ -79,7 +79,7 @@ jobs:
           --consumer minimum=build/reports/consumer/minimum/windows-x86_64.json
           --consumer current=build/reports/consumer/current/windows-x86_64.json
           --output validated/windows-x86_64.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: validation-windows
           path: validated/*
@@ -139,7 +139,7 @@ jobs:
           --consumer minimum=build/reports/consumer/minimum/android.json
           --consumer current=build/reports/consumer/current/android.json
           --output validated/android.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: validation-android
           path: validated/*
@@ -203,7 +203,7 @@ jobs:
               --consumer "current=build/reports/consumer/current/$target.json" \
               --output "validated/$target.json"
           done
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: validation-apple
           path: validated/*
@@ -250,7 +250,7 @@ jobs:
             -v "$uv_path:/usr/local/bin/uv:ro" \
             -w /workspace \
             "$IMAGE" bash scripts/ci/linux-profile.sh
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: validation-linux-${{ matrix.profile }}
           path: validated/linux-system-${{ matrix.profile }}.json
@@ -280,7 +280,7 @@ jobs:
           --plan "$PLAN"
           --input validated-input
           --output validated-runtime
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: validated-runtime
           path: validated-runtime/*
